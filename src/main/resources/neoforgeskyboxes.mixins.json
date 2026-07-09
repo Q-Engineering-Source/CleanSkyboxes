@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.hoshno.neoforgeskyboxes.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+  ],
+  "client": [
+    "skybox.BackgroundRendererMixin",
+    "skybox.FogColorMixin",
+    "skybox.SkyboxRenderMixin",
+    "skybox.SunSkyColorMixin",
+    "skybox.WindowMixin",
+    "skybox.WorldRendererAccess"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
