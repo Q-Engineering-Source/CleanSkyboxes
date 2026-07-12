@@ -18,6 +18,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import org.joml.Matrix4f;
 
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.List;
+
 public class SquareTexturedSkybox extends TexturedSkybox {
     public static Codec<SquareTexturedSkybox> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Properties.CODEC.fieldOf("properties").forGetter(AbstractSkybox::getProperties),
@@ -78,5 +82,17 @@ public class SquareTexturedSkybox extends TexturedSkybox {
             matrices.popPose();
             BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
         }
+    }
+
+    @Override
+    public List<ResourceLocation> getTexturesToRegister() {
+        return List.of(
+                this.textures.getNorth().getTextureId(),
+                this.textures.getSouth().getTextureId(),
+                this.textures.getEast().getTextureId(),
+                this.textures.getWest().getTextureId(),
+                this.textures.getTop().getTextureId(),
+                this.textures.getBottom().getTextureId()
+        );
     }
 }

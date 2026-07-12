@@ -9,6 +9,7 @@ import dev.hoshno.neoforgeskyboxes.skyboxes.SkyboxType;
 import dev.hoshno.neoforgeskyboxes.util.object.*;
 import net.minecraft.client.Camera;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
 
@@ -68,5 +69,17 @@ public class AnimatedSquareTexturedSkybox extends SquareTexturedSkybox {
 
     public float getFps() {
         return this.fps;
+    }
+
+    @Override
+    public List<ResourceLocation> getTexturesToRegister() {
+        return this.animationTextures.stream()
+                .flatMap(textures -> List.of(
+                        textures.getNorth(), textures.getSouth(), textures.getEast(),
+                        textures.getWest(), textures.getTop(), textures.getBottom()
+                ).stream())
+                .map(Texture::getTextureId)
+                .distinct()
+                .toList();
     }
 }

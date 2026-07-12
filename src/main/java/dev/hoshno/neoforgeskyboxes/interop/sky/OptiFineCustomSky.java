@@ -9,6 +9,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.hoshno.neoforgeskyboxes.api.skyboxes.Skybox;
 import dev.hoshno.neoforgeskyboxes.mixin.skybox.WorldRendererAccess;
 import dev.hoshno.neoforgeskyboxes.interop.client.config.FSBInteropConfig;
+import dev.hoshno.neoforgeskyboxes.skyboxes.TextureRegistrar;
 import net.minecraft.client.Camera;
 import net.minecraft.world.level.material.FogType;
 import net.minecraft.client.Minecraft;
@@ -20,6 +21,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import com.mojang.math.Axis;
 import net.minecraft.world.phys.Vec3;
@@ -28,7 +30,7 @@ import org.joml.Matrix4f;
 
 import java.util.List;
 
-public class OptiFineCustomSky implements Skybox {
+public class OptiFineCustomSky implements Skybox, TextureRegistrar {
     public static final Codec<OptiFineCustomSky> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             OptiFineSkyLayer.CODEC.listOf().optionalFieldOf("layers", ImmutableList.of()).forGetter(OptiFineCustomSky::getLayers),
             Level.RESOURCE_KEY_CODEC.fieldOf("world").forGetter(OptiFineCustomSky::getLevelResourceLocation)
@@ -258,6 +260,11 @@ public class OptiFineCustomSky implements Skybox {
 
     public ResourceKey<Level> getLevelResourceLocation() {
         return worldResourceLocation;
+    }
+
+    @Override
+    public List<ResourceLocation> getTexturesToRegister() {
+        return this.layers.stream().map(OptiFineSkyLayer::getSource).distinct().toList();
     }
 }
 

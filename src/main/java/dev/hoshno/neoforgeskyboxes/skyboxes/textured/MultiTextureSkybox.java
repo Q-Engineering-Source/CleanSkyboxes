@@ -16,6 +16,7 @@ import net.minecraft.client.renderer.*;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.Util;
 import com.mojang.math.Axis;
+import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
@@ -108,5 +109,13 @@ public class MultiTextureSkybox extends TexturedSkybox {
 
     public List<Animation> getAnimations() {
         return this.animations;
+    }
+
+    @Override
+    public List<ResourceLocation> getTexturesToRegister() {
+        return this.animations.stream()
+                .map(animation -> animation.getTexture().getTextureId())
+                .distinct()
+                .toList();
     }
 }

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import dev.hoshno.neoforgeskyboxes.api.skyboxes.RotatableSkybox;
 import dev.hoshno.neoforgeskyboxes.mixin.skybox.WorldRendererAccess;
 import dev.hoshno.neoforgeskyboxes.skyboxes.AbstractSkybox;
+import dev.hoshno.neoforgeskyboxes.skyboxes.TextureRegistrar;
 import dev.hoshno.neoforgeskyboxes.util.Utils;
 import dev.hoshno.neoforgeskyboxes.util.object.*;
 import net.minecraft.client.Minecraft;
@@ -17,7 +18,7 @@ import org.joml.Vector3f;
 
 import java.util.Objects;
 
-public abstract class TexturedSkybox extends AbstractSkybox implements RotatableSkybox {
+public abstract class TexturedSkybox extends AbstractSkybox implements RotatableSkybox, TextureRegistrar {
     public Rotation rotation;
     public Blend blend;
 

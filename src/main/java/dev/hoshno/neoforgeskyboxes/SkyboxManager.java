@@ -7,27 +7,37 @@ import com.mojang.serialization.JsonOps;
 import dev.hoshno.neoforgeskyboxes.api.FabricSkyBoxesApi;
 import dev.hoshno.neoforgeskyboxes.api.skyboxes.Skybox;
 import dev.hoshno.neoforgeskyboxes.mixin.skybox.WorldRendererAccess;
+import dev.hoshno.neoforgeskyboxes.skyboxes.AbstractSkybox;
 import dev.hoshno.neoforgeskyboxes.skyboxes.SkyboxType;
+import dev.hoshno.neoforgeskyboxes.skyboxes.TextureRegistrar;
 import dev.hoshno.neoforgeskyboxes.util.JsonObjectWrapper;
+import dev.hoshno.neoforgeskyboxes.util.object.Decorations;
 import dev.hoshno.neoforgeskyboxes.util.object.internal.Metadata;
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import net.minecraft.client.Camera;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.ApiStatus.Internal;
 import org.joml.Matrix4f;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class SkyboxManager implements FabricSkyBoxesApi {
     private static final SkyboxManager INSTANCE = new SkyboxManager();
+    private final Set<ResourceLocation> preloadedTextures = new HashSet<>();
     private final Map<ResourceLocation, Skybox> skyboxMap = new Object2ObjectLinkedOpenHashMap<>();
     /**
      * Stores a list of permanent skyboxes
@@ -79,8 +89,31 @@ public class SkyboxManager implements FabricSkyBoxesApi {
     public void addSkybox(ResourceLocation ResourceLocation, Skybox skybox) {
         Preconditions.checkNotNull(ResourceLocation, "ResourceLocation was null");
         Preconditions.checkNotNull(skybox, "Skybox was null");
+        this.preloadTextures(skybox);
         this.skyboxMap.put(ResourceLocation, skybox);
         this.sortSkybox();
+    }
+
+    private void preloadTextures(Skybox skybox) {
+        Collection<ResourceLocation> textures = new ArrayList<>();
+        if (skybox instanceof TextureRegistrar textureRegistrar) {
+            textures.addAll(textureRegistrar.getTexturesToRegister());
+        }
+        if (skybox instanceof AbstractSkybox abstractSkybox) {
+            Decorations decorations = abstractSkybox.getDecorations();
+            if (decorations.isSunEnabled() && !Decorations.SUN.equals(decorations.getSunTexture())) {
+                textures.add(decorations.getSunTexture());
+            }
+            if (decorations.isMoonEnabled() && !Decorations.MOON_PHASES.equals(decorations.getMoonTexture())) {
+                textures.add(decorations.getMoonTexture());
+            }
+        }
+
+        textures.forEach(texture -> {
+            if (this.preloadedTextures.add(texture)) {
+                Minecraft.getInstance().getTextureManager().register(texture, new SimpleTexture(texture));
+            }
+        });
     }
 
     /**
@@ -120,6 +153,8 @@ public class SkyboxManager implements FabricSkyBoxesApi {
     public void clearSkyboxes() {
         this.skyboxMap.clear();
         this.activeSkyboxes.clear();
+        this.preloadedTextures.forEach(texture -> Minecraft.getInstance().getTextureManager().release(texture));
+        this.preloadedTextures.clear();
     }
 
     @Internal
