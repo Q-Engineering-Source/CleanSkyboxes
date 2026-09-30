@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "dev.hoshno.neoforgeskyboxes.mixin",
+  "plugin": "dev.hoshno.neoforgeskyboxes.mixin.NeoforgeSkyboxesMixinConfigPlugin",
+  "compatibilityLevel": "JAVA_25",
+  "target": "@env(DEFAULT)",
+  "client": [
+    "skybox.SkyboxRenderMixin",
+    "resource.AbstractResourcePackAccessor",
+    "resource.FallbackResourceManagerAccessor",
+    "resource.SimpleReloadableResourceManagerAccessor"
+  ],
+  "mixins": [],
+  "server": [],
+  "setSourceFile": true
+}

@@ -5,38 +5,36 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import dev.hoshno.neoforgeskyboxes.NeoforgeSkyboxes;
 import dev.hoshno.neoforgeskyboxes.SkyboxManager;
-import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
-import net.minecraft.resources.ResourceLocation;
+import dev.hoshno.neoforgeskyboxes.skyboxes.SkyboxDefinition;
+import net.minecraft.client.resources.IResource;
+import net.minecraft.client.resources.IResourceManager;
+import net.minecraft.client.resources.IResourceManagerReloadListener;
+import net.minecraft.util.ResourceLocation;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
+import java.util.Set;
 
-public class SkyboxResourceListener implements ResourceManagerReloadListener {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().setLenient().create();
+public final class SkyboxResourceListener implements IResourceManagerReloadListener {
+    private static final Gson GSON = new GsonBuilder().serializeNulls().setLenient().create();
 
     @Override
-    public void onResourceManagerReload(ResourceManager manager) {
+    public void onResourceManagerReload(IResourceManager resourceManager) {
         SkyboxManager skyboxManager = SkyboxManager.getInstance();
-
-        // clear registered skyboxes on reload
         skyboxManager.clearSkyboxes();
 
-        // load new skyboxes
-        Map<ResourceLocation, Resource> resources = manager.listResources("sky", resourceLocation ->
-                resourceLocation.getNamespace().equals(NeoforgeSkyboxes.FABRIC_SKYBOXES_NAMESPACE)
-                        && resourceLocation.getPath().endsWith(".json"));
+        Set<ResourceLocation> resources = ResourcePackScanner.findSkyboxResources(resourceManager);
         NeoforgeSkyboxes.getLogger().info("Loading {} FabricSkyBoxes skybox resources", resources.size());
-
-        resources.forEach((ResourceLocation, resource) -> {
-            try {
-                JsonObject json = GSON.fromJson(new InputStreamReader(resource.open(), StandardCharsets.UTF_8), JsonObject.class);
-                skyboxManager.addSkybox(ResourceLocation, json);
-            } catch (Exception e) {
-                NeoforgeSkyboxes.getLogger().error("Error reading skybox {}", ResourceLocation.toString(), e);
+        for (ResourceLocation id : resources) {
+            try (IResource resource = resourceManager.getResource(id);
+                 InputStreamReader reader = new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8)) {
+                JsonObject json = GSON.fromJson(reader, JsonObject.class);
+                if (json != null) {
+                    skyboxManager.addSkybox(SkyboxDefinition.parse(id, json));
+                }
+            } catch (Exception exception) {
+                NeoforgeSkyboxes.getLogger().error("Error reading skybox {}", id, exception);
             }
-        });
+        }
     }
 }

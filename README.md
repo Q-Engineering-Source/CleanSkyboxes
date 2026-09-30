@@ -1,38 +1,22 @@
-<div align="center">
+# CleanSkyboxes
 
-# NeoforgeSkyboxes
+Client-side custom skybox support for Cleanroom 1.12.2, based on the existing FabricSkyBoxes/Nuit and OptiFine/MCPatcher compatibility work in this repository.
 
-#### Unofficial NeoForge 1.21.1 custom skybox support
+## Port status
 
-![](assets/readme-image.png)
-_Screenshot taken with [Dramatic Sky](https://www.curseforge.com/minecraft/texture-packs/dramatic-skys) resource pack and [BSL shaders](https://www.curseforge.com/minecraft/shaders/bsl-shaders) enabled._
+The build now targets Cleanroom 1.12.2. The active source tree loads schema v1/v2 `monocolor` and `square-textured` skyboxes, evaluates fade and common world conditions, and draws the six face textures over the vanilla sky. The Forge entry point, toggle key, resource discovery, and Actinium Iris phase bridge are also ported. The previous NeoForge 1.21.1 implementation is kept under `src/modern-reference` and is not compiled. Other skybox types, custom sun/moon/stars, fog changes, and OptiFine interoperability remain to be ported.
 
-</div>
+Resource discovery scans active directory and ZIP packs for `assets/fabricskyboxes/sky/*.json`. The 1.12.2 resource manager does not expose a list operation, so the port reads the active pack list through mixin accessors and asks the resource manager for each discovered ID.
 
-## Purpose
+## Build
 
-NeoforgeSkyboxes is an unofficial NeoForge 1.21.1 port of Nuit/FabricSkyBoxes, with the OptiFine/MCPatcher skybox compatibility layer merged in.
+Use JDK 25 and run:
 
-This mod exists because many custom sky resource packs are available for Fabric/Nuit or OptiFine-style formats, while NeoForge 1.21.1 does not currently have an official Nuit build. If the official project releases an equivalent NeoForge version, this port will be archived.
+```powershell
+.\gradlew.bat build
+```
 
-## Usage
-
-### Nuit skybox format
-
-This mod loads FabricSkyBoxes/Nuit-style skybox resource packs using the `fabricskyboxes` resource namespace.
-
-### OptiFine skybox format
-
-OptiFine/MCPatcher custom sky resource packs are supported through the bundled interop layer.
-
-## Suggestions / Support
-
-Please report issues to this project, not to the official Nuit/FabricSkyBoxes maintainers or resource pack authors, unless the same issue also happens with their official supported loaders.
-
-## Notes
-
-This is a client-side only mod.
-
+The development classpath includes Actinium from JitPack, pinned to commit `c318ed54` so its Cleanroom and Iris APIs match the local Actinium checkout. Actinium remains optional at runtime.
 
 ## License
 
