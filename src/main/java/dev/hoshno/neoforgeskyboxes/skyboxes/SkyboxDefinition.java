@@ -22,7 +22,8 @@ public final class SkyboxDefinition {
 
     public enum Type {
         MONOCOLOR,
-        SQUARE_TEXTURED
+        SQUARE_TEXTURED,
+        SINGLE_SPRITE_SQUARE_TEXTURED
     }
 
     private final ResourceLocation id;
@@ -32,6 +33,12 @@ public final class SkyboxDefinition {
     private final JsonObject payload;
 
     private final int priority;
+    private final boolean changeFog;
+    private final boolean changeFogDensity;
+    private final float fogRed;
+    private final float fogGreen;
+    private final float fogBlue;
+    private final float fogDensity;
     private final float minAlpha;
     private final float maxAlpha;
     private final int transitionInDuration;
@@ -48,6 +55,13 @@ public final class SkyboxDefinition {
     private final float colorAlpha;
     private final String blend;
     private final ResourceLocation[] textures;
+    private final float[][] textureUvs;
+    private final boolean showSun;
+    private final boolean showMoon;
+    private final boolean showStars;
+    private final ResourceLocation sunTexture;
+    private final ResourceLocation moonTexture;
+    private final String decorationBlend;
 
     private final Set<ResourceLocation> biomes;
     private final Set<ResourceLocation> dimensions;
@@ -71,9 +85,9 @@ public final class SkyboxDefinition {
     private float alpha;
 
     private SkyboxDefinition(ResourceLocation id, int schemaVersion, ResourceLocation typeId, Type type,
-                            JsonObject payload, JsonObject properties, JsonObject conditions,
+                            JsonObject payload, JsonObject properties, JsonObject conditions, JsonObject decorations,
                             float red, float green, float blue, float colorAlpha, String blend,
-                            ResourceLocation[] textures) {
+                            ResourceLocation[] textures, float[][] textureUvs) {
         this.id = id;
         this.schemaVersion = schemaVersion;
         this.typeId = typeId;
@@ -81,6 +95,8 @@ public final class SkyboxDefinition {
         this.payload = payload.deepCopy();
 
         this.priority = getInt(properties, "priority", 0);
+        this.changeFog = getBoolean(properties, "changeFog", false);
+        this.changeFogDensity = getBoolean(properties, "changeFogDensity", false);
         this.minAlpha = clamp(getFloat(properties, "minAlpha", 0.0F), 0.0F, 1.0F);
         this.maxAlpha = clamp(getFloat(properties, "maxAlpha", 1.0F), this.minAlpha, 1.0F);
         if (schemaVersion == 1) {
@@ -109,6 +125,27 @@ public final class SkyboxDefinition {
         this.colorAlpha = clamp(colorAlpha, 0.0F, 1.0F);
         this.blend = blend;
         this.textures = textures == null ? new ResourceLocation[0] : textures.clone();
+        this.textureUvs = copyUvs(textureUvs == null ? fullTextureUvs() : textureUvs);
+
+        JsonObject fogColors = getObject(properties, "fogColors");
+        if (schemaVersion == 1) {
+            this.fogRed = clamp(getFloat(properties, "fogRed", 0.0F), 0.0F, 1.0F);
+            this.fogGreen = clamp(getFloat(properties, "fogGreen", 0.0F), 0.0F, 1.0F);
+            this.fogBlue = clamp(getFloat(properties, "fogBlue", 0.0F), 0.0F, 1.0F);
+            this.fogDensity = 1.0F;
+        } else {
+            this.fogRed = clamp(getFloat(fogColors, "red", 0.0F), 0.0F, 1.0F);
+            this.fogGreen = clamp(getFloat(fogColors, "green", 0.0F), 0.0F, 1.0F);
+            this.fogBlue = clamp(getFloat(fogColors, "blue", 0.0F), 0.0F, 1.0F);
+            this.fogDensity = clamp(getFloat(fogColors, "alpha", 0.0F), 0.0F, 1.0F);
+        }
+
+        this.showSun = getBoolean(decorations, "showSun", false);
+        this.showMoon = getBoolean(decorations, "showMoon", false);
+        this.showStars = getBoolean(decorations, "showStars", false);
+        this.sunTexture = parseLocation(getString(decorations, "sun", "textures/environment/sun.png"));
+        this.moonTexture = parseLocation(getString(decorations, "moon", "textures/environment/moon_phases.png"));
+        this.decorationBlend = getString(getObject(decorations, "blend"), "type", "decorations");
 
         this.biomes = readLocations(conditions, "biomes");
         this.dimensions = readLocations(conditions, "dimensions");
@@ -166,6 +203,9 @@ public final class SkyboxDefinition {
             case "square_textured":
                 type = Type.SQUARE_TEXTURED;
                 break;
+            case "single_sprite_square_textured":
+                type = Type.SINGLE_SPRITE_SQUARE_TEXTURED;
+                break;
             default:
                 throw new IllegalArgumentException("Skybox type is not ported yet: " + typeId);
         }
@@ -185,6 +225,7 @@ public final class SkyboxDefinition {
         float colorAlpha = 1.0F;
         String blend = "";
         ResourceLocation[] textures = null;
+        float[][] textureUvs = null;
 
         if (type == Type.MONOCOLOR) {
             if (schemaVersion == 1) {
@@ -205,7 +246,7 @@ public final class SkyboxDefinition {
                 }
                 blend = getString(getObject(json, "blend"), "type", "");
             }
-        } else {
+        } else if (type == Type.SQUARE_TEXTURED) {
             JsonObject textureObject = schemaVersion == 1 ? json : getObject(json, "textures");
             if (textureObject == null) {
                 throw new IllegalArgumentException("Missing 'textures' object");
@@ -217,15 +258,25 @@ public final class SkyboxDefinition {
             for (int index = 0; index < keys.length; index++) {
                 textures[index] = parseLocation(getRequiredString(textureObject, keys[index]));
             }
+            textureUvs = fullTextureUvs();
             if (schemaVersion == 1) {
                 blend = getBoolean(json, "shouldBlend", false) ? "add" : "";
             } else {
                 blend = getString(getObject(json, "blend"), "type", "");
             }
+        } else {
+            if (schemaVersion == 1) {
+                throw new IllegalArgumentException("single-sprite skyboxes require schemaVersion 2");
+            }
+            ResourceLocation texture = parseLocation(getRequiredString(json, "texture"));
+            textures = new ResourceLocation[]{texture, texture, texture, texture, texture, texture};
+            textureUvs = singleSpriteTextureUvs();
+            blend = getString(getObject(json, "blend"), "type", "");
         }
 
+        JsonObject decorations = schemaVersion == 1 ? null : getObject(json, "decorations");
         return new SkyboxDefinition(id, schemaVersion, typeId, type, json,
-                properties, conditions, red, green, blue, colorAlpha, blend, textures);
+                properties, conditions, decorations, red, green, blue, colorAlpha, blend, textures, textureUvs);
     }
 
     public boolean tick(Minecraft minecraft) {
@@ -530,6 +581,33 @@ public final class SkyboxDefinition {
         return Math.max(min, Math.min(max, value));
     }
 
+    private static float[][] fullTextureUvs() {
+        float[][] uvs = new float[6][4];
+        for (int face = 0; face < uvs.length; face++) {
+            uvs[face] = new float[]{0.0F, 0.0F, 1.0F, 1.0F};
+        }
+        return uvs;
+    }
+
+    private static float[][] singleSpriteTextureUvs() {
+        return new float[][]{
+                {0.0F, 0.0F, 1.0F / 3.0F, 0.5F},
+                {1.0F / 3.0F, 0.5F, 2.0F / 3.0F, 1.0F},
+                {2.0F / 3.0F, 0.0F, 1.0F, 0.5F},
+                {1.0F / 3.0F, 0.0F, 2.0F / 3.0F, 0.5F},
+                {2.0F / 3.0F, 0.5F, 1.0F, 1.0F},
+                {0.0F, 0.5F, 1.0F / 3.0F, 1.0F}
+        };
+    }
+
+    private static float[][] copyUvs(float[][] source) {
+        float[][] copy = new float[source.length][];
+        for (int i = 0; i < source.length; i++) {
+            copy[i] = source[i].clone();
+        }
+        return copy;
+    }
+
     public ResourceLocation getId() {
         return this.id;
     }
@@ -552,6 +630,34 @@ public final class SkyboxDefinition {
 
     public int getPriority() {
         return this.priority;
+    }
+
+    public boolean changesFog() {
+        return this.changeFog;
+    }
+
+    public boolean changesFogDensity() {
+        return this.changeFogDensity;
+    }
+
+    public float getFogRed() {
+        return this.fogRed;
+    }
+
+    public float getFogGreen() {
+        return this.fogGreen;
+    }
+
+    public float getFogBlue() {
+        return this.fogBlue;
+    }
+
+    public float getFogDensity() {
+        return this.fogDensity;
+    }
+
+    public float getMaxAlpha() {
+        return this.maxAlpha;
     }
 
     public float getAlpha() {
@@ -582,6 +688,10 @@ public final class SkyboxDefinition {
         return this.textures.clone();
     }
 
+    public float[] getTextureUv(int face) {
+        return this.textureUvs[face].clone();
+    }
+
     public float[] getStaticRotation() {
         return this.staticRotation.clone();
     }
@@ -600,6 +710,30 @@ public final class SkyboxDefinition {
 
     public boolean isSkyboxRotation() {
         return this.skyboxRotation;
+    }
+
+    public boolean isSunEnabled() {
+        return this.showSun;
+    }
+
+    public boolean isMoonEnabled() {
+        return this.showMoon;
+    }
+
+    public boolean areStarsEnabled() {
+        return this.showStars;
+    }
+
+    public ResourceLocation getSunTexture() {
+        return this.sunTexture;
+    }
+
+    public ResourceLocation getMoonTexture() {
+        return this.moonTexture;
+    }
+
+    public String getDecorationBlend() {
+        return this.decorationBlend;
     }
 
     private static final class ValueRange {

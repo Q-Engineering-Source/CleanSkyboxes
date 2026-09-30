@@ -7,6 +7,8 @@
   "target": "@env(DEFAULT)",
   "client": [
     "skybox.SkyboxRenderMixin",
+    "skybox.EntityRendererFogMixin",
+    "skybox.RenderGlobalSkyAccessor",
     "resource.AbstractResourcePackAccessor",
     "resource.FallbackResourceManagerAccessor",
     "resource.SimpleReloadableResourceManagerAccessor"

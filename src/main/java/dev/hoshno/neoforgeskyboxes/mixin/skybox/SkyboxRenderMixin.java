@@ -33,7 +33,7 @@ public abstract class SkyboxRenderMixin {
 
         boolean actiniumPhaseStarted = ActiniumSkyCompatibility.beginCustomSky();
         try {
-            manager.renderSkyboxes(minecraft);
+            manager.renderSkyboxes(minecraft, partialTicks, (RenderGlobalSkyAccessor) this);
         } finally {
             ActiniumSkyCompatibility.endCustomSky(actiniumPhaseStarted);
         }
