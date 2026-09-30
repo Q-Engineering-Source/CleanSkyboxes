@@ -23,6 +23,7 @@ public final class SkyboxDefinition {
 
     public enum Type {
         MONOCOLOR,
+        END,
         SQUARE_TEXTURED,
         SINGLE_SPRITE_SQUARE_TEXTURED,
         ANIMATED_SQUARE_TEXTURED,
@@ -210,6 +211,9 @@ public final class SkyboxDefinition {
             case "mono_color":
                 type = Type.MONOCOLOR;
                 break;
+            case "end":
+                type = Type.END;
+                break;
             case "square_textured":
                 type = Type.SQUARE_TEXTURED;
                 break;
@@ -263,6 +267,10 @@ public final class SkyboxDefinition {
                     colorAlpha = getFloat(color, "alpha", 1.0F);
                 }
                 blend = getString(getObject(json, "blend"), "type", "");
+            }
+        } else if (type == Type.END) {
+            if (schemaVersion == 1) {
+                throw new IllegalArgumentException("end skyboxes require schemaVersion 2");
             }
         } else if (type == Type.SQUARE_TEXTURED) {
             JsonObject textureObject = schemaVersion == 1 ? json : getObject(json, "textures");

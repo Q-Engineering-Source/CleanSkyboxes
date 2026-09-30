@@ -13,6 +13,7 @@ import org.lwjgl.opengl.GL11;
 /** Immediate-mode renderer for the first Cleanroom ported skybox types. */
 public final class SkyboxRenderer {
     private static final float HALF_WIDTH = 100.0F;
+    private static final ResourceLocation END_SKY = new ResourceLocation("textures/environment/end_sky.png");
 
     private SkyboxRenderer() {
     }
@@ -24,7 +25,9 @@ public final class SkyboxRenderer {
         }
 
         GlStateManager.pushMatrix();
-        applyRotation(minecraft, skybox);
+        if (skybox.getType() != SkyboxDefinition.Type.END) {
+            applyRotation(minecraft, skybox);
+        }
         GlStateManager.depthMask(false);
         GlStateManager.disableAlpha();
         GlStateManager.disableCull();
@@ -34,6 +37,9 @@ public final class SkyboxRenderer {
         if (skybox.getType() == SkyboxDefinition.Type.MONOCOLOR) {
             GlStateManager.disableTexture2D();
             renderMonocolor(skybox, alpha);
+        } else if (skybox.getType() == SkyboxDefinition.Type.END) {
+            GlStateManager.enableTexture2D();
+            renderEndSky(minecraft, alpha);
         } else if (skybox.getType() == SkyboxDefinition.Type.SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.ANIMATED_SQUARE_TEXTURED
@@ -52,6 +58,48 @@ public final class SkyboxRenderer {
         GlStateManager.depthMask(true);
         GlStateManager.enableAlpha();
         GlStateManager.enableFog();
+    }
+
+    private static void renderEndSky(Minecraft minecraft, float alpha) {
+        minecraft.getTextureManager().bindTexture(END_SKY);
+        for (int face = 0; face < 6; face++) {
+            GlStateManager.pushMatrix();
+            rotateEndFace(face);
+            BufferBuilder buffer = Tessellator.getInstance().getBuffer();
+            buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
+            addEndSkyVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, 0.0D, 0.0D, alpha);
+            addEndSkyVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, 0.0D, 16.0D, alpha);
+            addEndSkyVertex(buffer, HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, 16.0D, 16.0D, alpha);
+            addEndSkyVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, 16.0D, 0.0D, alpha);
+            Tessellator.getInstance().draw();
+            GlStateManager.popMatrix();
+        }
+    }
+
+    private static void addEndSkyVertex(BufferBuilder buffer, double x, double y, double z, double u, double v, float alpha) {
+        buffer.pos(x, y, z).tex(u, v).color(40.0F / 255.0F, 40.0F / 255.0F, 40.0F / 255.0F, alpha).endVertex();
+    }
+
+    private static void rotateEndFace(int face) {
+        switch (face) {
+            case 1:
+                GlStateManager.rotate(90.0F, 1.0F, 0.0F, 0.0F);
+                break;
+            case 2:
+                GlStateManager.rotate(-90.0F, 1.0F, 0.0F, 0.0F);
+                break;
+            case 3:
+                GlStateManager.rotate(180.0F, 1.0F, 0.0F, 0.0F);
+                break;
+            case 4:
+                GlStateManager.rotate(90.0F, 0.0F, 0.0F, 1.0F);
+                break;
+            case 5:
+                GlStateManager.rotate(-90.0F, 0.0F, 0.0F, 1.0F);
+                break;
+            default:
+                break;
+        }
     }
 
     private static void renderMonocolor(SkyboxDefinition skybox, float alpha) {
