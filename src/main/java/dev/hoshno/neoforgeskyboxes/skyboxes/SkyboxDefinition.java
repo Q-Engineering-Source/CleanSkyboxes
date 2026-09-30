@@ -12,6 +12,7 @@ import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,7 +24,9 @@ public final class SkyboxDefinition {
     public enum Type {
         MONOCOLOR,
         SQUARE_TEXTURED,
-        SINGLE_SPRITE_SQUARE_TEXTURED
+        SINGLE_SPRITE_SQUARE_TEXTURED,
+        ANIMATED_SQUARE_TEXTURED,
+        SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED
     }
 
     private final ResourceLocation id;
@@ -55,6 +58,9 @@ public final class SkyboxDefinition {
     private final float colorAlpha;
     private final String blend;
     private final ResourceLocation[] textures;
+    private final ResourceLocation[][] textureFrames;
+    private final long animationStartedAtMillis;
+    private final long animationFrameMillis;
     private final float[][] textureUvs;
     private final boolean showSun;
     private final boolean showMoon;
@@ -87,7 +93,8 @@ public final class SkyboxDefinition {
     private SkyboxDefinition(ResourceLocation id, int schemaVersion, ResourceLocation typeId, Type type,
                             JsonObject payload, JsonObject properties, JsonObject conditions, JsonObject decorations,
                             float red, float green, float blue, float colorAlpha, String blend,
-                            ResourceLocation[] textures, float[][] textureUvs) {
+                            ResourceLocation[] textures, float[][] textureUvs,
+                            List<ResourceLocation[]> textureFrames, float fps) {
         this.id = id;
         this.schemaVersion = schemaVersion;
         this.typeId = typeId;
@@ -125,6 +132,9 @@ public final class SkyboxDefinition {
         this.colorAlpha = clamp(colorAlpha, 0.0F, 1.0F);
         this.blend = blend;
         this.textures = textures == null ? new ResourceLocation[0] : textures.clone();
+        this.textureFrames = copyTextureFrames(textureFrames, this.textures);
+        this.animationStartedAtMillis = System.currentTimeMillis();
+        this.animationFrameMillis = fps > 0.0F && fps <= 360.0F ? (long) (1000.0F / fps) : 16L;
         this.textureUvs = copyUvs(textureUvs == null ? fullTextureUvs() : textureUvs);
 
         JsonObject fogColors = getObject(properties, "fogColors");
@@ -206,6 +216,12 @@ public final class SkyboxDefinition {
             case "single_sprite_square_textured":
                 type = Type.SINGLE_SPRITE_SQUARE_TEXTURED;
                 break;
+            case "animated_square_textured":
+                type = Type.ANIMATED_SQUARE_TEXTURED;
+                break;
+            case "single_sprite_animated_square_textured":
+                type = Type.SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED;
+                break;
             default:
                 throw new IllegalArgumentException("Skybox type is not ported yet: " + typeId);
         }
@@ -226,6 +242,8 @@ public final class SkyboxDefinition {
         String blend = "";
         ResourceLocation[] textures = null;
         float[][] textureUvs = null;
+        List<ResourceLocation[]> textureFrames = new ArrayList<>();
+        float fps = 20.0F;
 
         if (type == Type.MONOCOLOR) {
             if (schemaVersion == 1) {
@@ -259,24 +277,61 @@ public final class SkyboxDefinition {
                 textures[index] = parseLocation(getRequiredString(textureObject, keys[index]));
             }
             textureUvs = fullTextureUvs();
+            textureFrames.add(textures.clone());
             if (schemaVersion == 1) {
                 blend = getBoolean(json, "shouldBlend", false) ? "add" : "";
             } else {
                 blend = getString(getObject(json, "blend"), "type", "");
             }
-        } else {
+        } else if (type == Type.SINGLE_SPRITE_SQUARE_TEXTURED) {
             if (schemaVersion == 1) {
                 throw new IllegalArgumentException("single-sprite skyboxes require schemaVersion 2");
             }
             ResourceLocation texture = parseLocation(getRequiredString(json, "texture"));
             textures = new ResourceLocation[]{texture, texture, texture, texture, texture, texture};
             textureUvs = singleSpriteTextureUvs();
+            textureFrames.add(textures.clone());
+            blend = getString(getObject(json, "blend"), "type", "");
+        } else if (type == Type.ANIMATED_SQUARE_TEXTURED) {
+            if (schemaVersion == 1) {
+                throw new IllegalArgumentException("animated skyboxes require schemaVersion 2");
+            }
+            JsonElement animationElement = json.get("animationTextures");
+            if (animationElement == null || !animationElement.isJsonArray() || animationElement.getAsJsonArray().size() == 0) {
+                throw new IllegalArgumentException("Missing non-empty 'animationTextures' array");
+            }
+            for (JsonElement frame : animationElement.getAsJsonArray()) {
+                if (!frame.isJsonObject()) {
+                    throw new IllegalArgumentException("Animated square frame must be a texture object");
+                }
+                textureFrames.add(parseSixTextures(frame.getAsJsonObject()));
+            }
+            textures = textureFrames.get(0).clone();
+            textureUvs = fullTextureUvs();
+            fps = getRequiredFloat(json, "fps");
+            blend = getString(getObject(json, "blend"), "type", "");
+        } else {
+            if (schemaVersion == 1) {
+                throw new IllegalArgumentException("animated skyboxes require schemaVersion 2");
+            }
+            JsonElement animationElement = json.get("animationTextures");
+            if (animationElement == null || !animationElement.isJsonArray() || animationElement.getAsJsonArray().size() == 0) {
+                throw new IllegalArgumentException("Missing non-empty 'animationTextures' array");
+            }
+            for (JsonElement frame : animationElement.getAsJsonArray()) {
+                ResourceLocation texture = parseLocation(frame.getAsString());
+                textureFrames.add(new ResourceLocation[]{texture, texture, texture, texture, texture, texture});
+            }
+            textures = textureFrames.get(0).clone();
+            textureUvs = singleSpriteTextureUvs();
+            fps = getRequiredFloat(json, "fps");
             blend = getString(getObject(json, "blend"), "type", "");
         }
 
         JsonObject decorations = schemaVersion == 1 ? null : getObject(json, "decorations");
         return new SkyboxDefinition(id, schemaVersion, typeId, type, json,
-                properties, conditions, decorations, red, green, blue, colorAlpha, blend, textures, textureUvs);
+                properties, conditions, decorations, red, green, blue, colorAlpha, blend,
+                textures, textureUvs, textureFrames, fps);
     }
 
     public boolean tick(Minecraft minecraft) {
@@ -600,6 +655,29 @@ public final class SkyboxDefinition {
         };
     }
 
+    private static ResourceLocation[] parseSixTextures(JsonObject object) {
+        String[] keys = new String[]{"bottom", "north", "south", "top", "east", "west"};
+        ResourceLocation[] frame = new ResourceLocation[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            frame[i] = parseLocation(getRequiredString(object, keys[i]));
+        }
+        return frame;
+    }
+
+    private static ResourceLocation[][] copyTextureFrames(List<ResourceLocation[]> frames, ResourceLocation[] fallback) {
+        if (frames == null || frames.isEmpty()) {
+            if (fallback == null) {
+                return new ResourceLocation[0][];
+            }
+            return new ResourceLocation[][]{fallback.clone()};
+        }
+        ResourceLocation[][] copy = new ResourceLocation[frames.size()][];
+        for (int i = 0; i < frames.size(); i++) {
+            copy[i] = frames.get(i).clone();
+        }
+        return copy;
+    }
+
     private static float[][] copyUvs(float[][] source) {
         float[][] copy = new float[source.length][];
         for (int i = 0; i < source.length; i++) {
@@ -686,6 +764,26 @@ public final class SkyboxDefinition {
 
     public ResourceLocation[] getTextures() {
         return this.textures.clone();
+    }
+
+    public ResourceLocation[] getTexturesAt(long nowMillis) {
+        if (this.textureFrames.length == 0) {
+            return new ResourceLocation[0];
+        }
+        if (this.textureFrames.length <= 1) {
+            return this.textureFrames[0].clone();
+        }
+        long elapsed = Math.max(0L, nowMillis - this.animationStartedAtMillis);
+        int frame = (int) ((elapsed / Math.max(1L, this.animationFrameMillis)) % this.textureFrames.length);
+        return this.textureFrames[frame].clone();
+    }
+
+    public List<ResourceLocation> getAllTextures() {
+        Set<ResourceLocation> unique = new HashSet<>();
+        for (ResourceLocation[] frame : this.textureFrames) {
+            Collections.addAll(unique, frame);
+        }
+        return new ArrayList<>(unique);
     }
 
     public float[] getTextureUv(int face) {

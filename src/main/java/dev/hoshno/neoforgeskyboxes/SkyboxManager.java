@@ -33,8 +33,10 @@ public final class SkyboxManager {
     public synchronized void addSkybox(SkyboxDefinition skybox) {
         this.skyboxes.put(skybox.getId(), skybox);
         if (skybox.getType() == SkyboxDefinition.Type.SQUARE_TEXTURED
-                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED) {
-            for (ResourceLocation texture : skybox.getTextures()) {
+                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED
+                || skybox.getType() == SkyboxDefinition.Type.ANIMATED_SQUARE_TEXTURED
+                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED) {
+            for (ResourceLocation texture : skybox.getAllTextures()) {
                 Minecraft.getMinecraft().getTextureManager().bindTexture(texture);
             }
         }

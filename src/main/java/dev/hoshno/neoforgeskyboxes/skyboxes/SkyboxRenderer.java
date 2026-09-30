@@ -35,7 +35,9 @@ public final class SkyboxRenderer {
             GlStateManager.disableTexture2D();
             renderMonocolor(skybox, alpha);
         } else if (skybox.getType() == SkyboxDefinition.Type.SQUARE_TEXTURED
-                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED) {
+                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED
+                || skybox.getType() == SkyboxDefinition.Type.ANIMATED_SQUARE_TEXTURED
+                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED) {
             GlStateManager.enableTexture2D();
             renderSquareTextured(minecraft, skybox, alpha);
         }
@@ -75,7 +77,7 @@ public final class SkyboxRenderer {
     }
 
     private static void renderSquareTextured(Minecraft minecraft, SkyboxDefinition skybox, float alpha) {
-        ResourceLocation[] textures = skybox.getTextures();
+        ResourceLocation[] textures = skybox.getTexturesAt(System.currentTimeMillis());
         for (int face = 0; face < textures.length; face++) {
             float[] uv = skybox.getTextureUv(face);
             minecraft.getTextureManager().bindTexture(textures[face]);
