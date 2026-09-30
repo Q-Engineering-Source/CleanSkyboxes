@@ -16,7 +16,7 @@ Use JDK 25 and run:
 .\gradlew.bat build
 ```
 
-The development classpath includes Actinium from JitPack, pinned to commit `c318ed54` so its Cleanroom and Iris APIs match the local Actinium checkout. Actinium remains optional at runtime.
+The development classpath includes Actinium from JitPack, pinned to commit `c318ed54` so its Cleanroom and Iris APIs match the local Actinium checkout. Its JitPack POM omits runtime dependencies, so the dev run declares Actinium's ANTLR, GLSL transformation, JCPP, JOML, and Gson libraries explicitly. Actinium remains optional in ordinary modpacks.
 
 ## License
 

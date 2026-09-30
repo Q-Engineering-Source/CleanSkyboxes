@@ -15,6 +15,10 @@ repositories {
         name = 'Modrinth'
         url = 'https://api.modrinth.com/maven'
     }
+    maven {
+        name = 'GTNHLib Nexus'
+        url = 'https://nexus.gtnewhorizons.com/repository/public/'
+    }
     mavenCentral()
     maven {
         name = 'JitPack'
@@ -30,9 +34,21 @@ dependencies {
     if (enable_lwjglx.toBoolean()) {
         compileOnly "com.cleanroommc:lwjglx:1.0.0"
     }
-    def actinium = "com.github.Q-Engineering-Source:Actinium:${actinium_version}"
-    modCompileOnly actinium
-    modRuntimeOnly actinium
+    modImplementation("com.github.Q-Engineering-Source:Actinium:${actinium_version}") {
+        exclude group: 'remapped_curse.maven'
+    }
+
+    // Actinium's JitPack POM does not describe these development runtime dependencies.
+    // Its packaged jar contains them as ContainedDeps, which the Cleanroom dev run does
+    // not unpack, so declare the same runtime libraries explicitly here.
+    runtimeOnly 'org.antlr:antlr4-runtime:4.13.2'
+    runtimeOnly('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
+        // Avoid pulling an old ICU version through the ANTLR code generator.
+        transitive = false
+    }
+    runtimeOnly 'org.anarres:jcpp:1.4.14'
+    runtimeOnly 'org.joml:joml:1.10.5'
+    runtimeOnly 'com.google.code.gson:gson:2.10.1'
 
     // Example - Dependency descriptor:
     // 'com.google.code.gson:gson:2.8.6' << group: com.google.code.gson, name:gson, version:2.8.6
