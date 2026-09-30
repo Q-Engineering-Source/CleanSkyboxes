@@ -30,31 +30,35 @@ public final class SkyboxRenderer {
 
         GlStateManager.pushMatrix();
         if (skybox.getType() != SkyboxDefinition.Type.END) {
-            applyRotation(minecraft, skybox);
+            if (skybox.isOptifineLayer()) {
+                applyOptifineRotation(minecraft.world, skybox, partialTicks);
+            } else {
+                applyRotation(minecraft, skybox);
+            }
         }
         GlStateManager.depthMask(false);
         GlStateManager.disableAlpha();
         GlStateManager.disableCull();
         GlStateManager.enableBlend();
-        applyBlend(skybox.getBlend());
+        float[] colorModulation = applyBlend(skybox.getBlendSettings(), alpha);
 
         if (skybox.getType() == SkyboxDefinition.Type.MONOCOLOR) {
             GlStateManager.disableTexture2D();
-            renderMonocolor(skybox, alpha);
+            renderMonocolor(skybox, colorModulation);
         } else if (skybox.getType() == SkyboxDefinition.Type.END) {
             GlStateManager.enableTexture2D();
-            renderEndSky(minecraft, alpha);
+            renderEndSky(minecraft, colorModulation);
         } else if (skybox.getType() == SkyboxDefinition.Type.OVERWORLD) {
-            renderOverworldSky(minecraft, alpha, partialTicks, renderGlobal);
+            renderOverworldSky(minecraft, skybox.getBlendSettings(), colorModulation, alpha, partialTicks, renderGlobal);
         } else if (skybox.getType() == SkyboxDefinition.Type.SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.ANIMATED_SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED) {
             GlStateManager.enableTexture2D();
-            renderSquareTextured(minecraft, skybox, alpha);
+            renderSquareTextured(minecraft, skybox, colorModulation);
         } else if (skybox.getType() == SkyboxDefinition.Type.MULTI_TEXTURE) {
             GlStateManager.enableTexture2D();
-            renderMultiTexture(minecraft, skybox, alpha);
+            renderMultiTexture(minecraft, skybox, colorModulation);
         }
 
         GlStateManager.popMatrix();
@@ -69,24 +73,24 @@ public final class SkyboxRenderer {
         GlStateManager.enableFog();
     }
 
-    private static void renderEndSky(Minecraft minecraft, float alpha) {
+    private static void renderEndSky(Minecraft minecraft, float[] colorModulation) {
         minecraft.getTextureManager().bindTexture(END_SKY);
         for (int face = 0; face < 6; face++) {
             GlStateManager.pushMatrix();
             rotateEndFace(face);
             BufferBuilder buffer = Tessellator.getInstance().getBuffer();
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-            addEndSkyVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, 0.0D, 0.0D, alpha);
-            addEndSkyVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, 0.0D, 16.0D, alpha);
-            addEndSkyVertex(buffer, HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, 16.0D, 16.0D, alpha);
-            addEndSkyVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, 16.0D, 0.0D, alpha);
+            addEndSkyVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, 0.0D, 0.0D, colorModulation);
+            addEndSkyVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, 0.0D, 16.0D, colorModulation);
+            addEndSkyVertex(buffer, HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, 16.0D, 16.0D, colorModulation);
+            addEndSkyVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, 16.0D, 0.0D, colorModulation);
             Tessellator.getInstance().draw();
             GlStateManager.popMatrix();
         }
     }
 
-    private static void renderOverworldSky(Minecraft minecraft, float alpha,
-                                           float partialTicks, RenderGlobalSkyAccessor renderGlobal) {
+    private static void renderOverworldSky(Minecraft minecraft, BlendSettings blendSettings, float[] colorModulation,
+                                           float alpha, float partialTicks, RenderGlobalSkyAccessor renderGlobal) {
         World world = minecraft.world;
         Entity camera = minecraft.getRenderViewEntity();
         if (camera == null) {
@@ -97,7 +101,8 @@ public final class SkyboxRenderer {
         GlStateManager.depthMask(false);
         GlStateManager.enableFog();
         GlStateManager.disableTexture2D();
-        GlStateManager.color((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, alpha);
+        GlStateManager.color((float) skyColor.x * colorModulation[0], (float) skyColor.y * colorModulation[1],
+                (float) skyColor.z * colorModulation[2], colorModulation[3]);
         drawSkyMesh(renderGlobal.getSkyVBO(), renderGlobal.getSkyDisplayList(), renderGlobal.isVboEnabled());
         GlStateManager.disableFog();
         GlStateManager.enableBlend();
@@ -109,6 +114,7 @@ public final class SkyboxRenderer {
         if (sunrise != null) {
             GlStateManager.disableTexture2D();
             GlStateManager.shadeModel(GL11.GL_SMOOTH);
+            colorModulation = applyBlend(blendSettings, alpha);
             GlStateManager.pushMatrix();
             GlStateManager.rotate(90.0F, 1.0F, 0.0F, 0.0F);
             GlStateManager.rotate(Math.sin(world.getCelestialAngleRadians(partialTicks)) < 0.0D ? 180.0F : 0.0F,
@@ -118,14 +124,16 @@ public final class SkyboxRenderer {
             BufferBuilder buffer = Tessellator.getInstance().getBuffer();
             buffer.begin(GL11.GL_TRIANGLE_FAN, DefaultVertexFormats.POSITION_COLOR);
             buffer.pos(0.0D, 100.0D, 0.0D)
-                    .color(sunrise[0], sunrise[1], sunrise[2], sunrise[3] * alpha)
+                    .color(sunrise[0] * colorModulation[0], sunrise[1] * colorModulation[1],
+                            sunrise[2] * colorModulation[2], sunrise[3] * colorModulation[3])
                     .endVertex();
             for (int i = 0; i <= 16; i++) {
                 float angle = i * (float) (Math.PI * 2.0D) / 16.0F;
                 float sin = (float) Math.sin(angle);
                 float cos = (float) Math.cos(angle);
                 buffer.pos(sin * 120.0F, cos * 120.0F, -cos * 40.0F * sunrise[3])
-                        .color(sunrise[0], sunrise[1], sunrise[2], 0.0F)
+                        .color(sunrise[0] * colorModulation[0], sunrise[1] * colorModulation[1],
+                                sunrise[2] * colorModulation[2], 0.0F)
                         .endVertex();
             }
             Tessellator.getInstance().draw();
@@ -136,7 +144,8 @@ public final class SkyboxRenderer {
 
         double eyeY = camera.lastTickPosY + (camera.posY - camera.lastTickPosY) * partialTicks + camera.getEyeHeight();
         if (eyeY < world.getHorizon()) {
-            GlStateManager.color(0.0F, 0.0F, 0.0F, alpha);
+            colorModulation = applyBlend(blendSettings, alpha);
+            GlStateManager.color(0.0F, 0.0F, 0.0F, colorModulation[3]);
             GlStateManager.pushMatrix();
             GlStateManager.translate(0.0F, 12.0F, 0.0F);
             drawSkyMesh(renderGlobal.getDarkSkyVBO(), renderGlobal.getDarkSkyDisplayList(), renderGlobal.isVboEnabled());
@@ -161,8 +170,11 @@ public final class SkyboxRenderer {
         }
     }
 
-    private static void addEndSkyVertex(BufferBuilder buffer, double x, double y, double z, double u, double v, float alpha) {
-        buffer.pos(x, y, z).tex(u, v).color(40.0F / 255.0F, 40.0F / 255.0F, 40.0F / 255.0F, alpha).endVertex();
+    private static void addEndSkyVertex(BufferBuilder buffer, double x, double y, double z, double u, double v,
+                                        float[] colorModulation) {
+        buffer.pos(x, y, z).tex(u, v)
+                .color(40.0F / 255.0F * colorModulation[0], 40.0F / 255.0F * colorModulation[1],
+                        40.0F / 255.0F * colorModulation[2], colorModulation[3]).endVertex();
     }
 
     private static void rotateEndFace(int face) {
@@ -187,29 +199,31 @@ public final class SkyboxRenderer {
         }
     }
 
-    private static void renderMonocolor(SkyboxDefinition skybox, float alpha) {
-        float vertexAlpha = alpha * skybox.getColorAlpha();
+    private static void renderMonocolor(SkyboxDefinition skybox, float[] colorModulation) {
+        float vertexAlpha = colorModulation[3] * skybox.getColorAlpha();
         for (int face = 0; face < 6; face++) {
             GlStateManager.pushMatrix();
             rotateFace(face);
             BufferBuilder buffer = Tessellator.getInstance().getBuffer();
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
-            addColorVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, skybox, vertexAlpha);
-            addColorVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, skybox, vertexAlpha);
-            addColorVertex(buffer, HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, skybox, vertexAlpha);
-            addColorVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, skybox, vertexAlpha);
+            addColorVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, skybox, vertexAlpha, colorModulation);
+            addColorVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, skybox, vertexAlpha, colorModulation);
+            addColorVertex(buffer, HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, skybox, vertexAlpha, colorModulation);
+            addColorVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, skybox, vertexAlpha, colorModulation);
             Tessellator.getInstance().draw();
             GlStateManager.popMatrix();
         }
     }
 
-    private static void addColorVertex(BufferBuilder buffer, double x, double y, double z, SkyboxDefinition skybox, float alpha) {
+    private static void addColorVertex(BufferBuilder buffer, double x, double y, double z, SkyboxDefinition skybox,
+                                       float alpha, float[] colorModulation) {
         buffer.pos(x, y, z)
-                .color(skybox.getRed(), skybox.getGreen(), skybox.getBlue(), alpha)
+                .color(skybox.getRed() * colorModulation[0], skybox.getGreen() * colorModulation[1],
+                        skybox.getBlue() * colorModulation[2], alpha)
                 .endVertex();
     }
 
-    private static void renderSquareTextured(Minecraft minecraft, SkyboxDefinition skybox, float alpha) {
+    private static void renderSquareTextured(Minecraft minecraft, SkyboxDefinition skybox, float[] colorModulation) {
         ResourceLocation[] textures = skybox.getTexturesAt(System.currentTimeMillis());
         for (int face = 0; face < textures.length; face++) {
             float[] uv = skybox.getTextureUv(face);
@@ -218,16 +232,16 @@ public final class SkyboxRenderer {
             rotateFace(face);
             BufferBuilder buffer = Tessellator.getInstance().getBuffer();
             buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-            addTextureVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, uv[0], uv[1], alpha);
-            addTextureVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, uv[0], uv[3], alpha);
-            addTextureVertex(buffer, HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, uv[2], uv[3], alpha);
-            addTextureVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, uv[2], uv[1], alpha);
+            addTextureVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, uv[0], uv[1], colorModulation);
+            addTextureVertex(buffer, -HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, uv[0], uv[3], colorModulation);
+            addTextureVertex(buffer, HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, uv[2], uv[3], colorModulation);
+            addTextureVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, uv[2], uv[1], colorModulation);
             Tessellator.getInstance().draw();
             GlStateManager.popMatrix();
         }
     }
 
-    private static void renderMultiTexture(Minecraft minecraft, SkyboxDefinition skybox, float alpha) {
+    private static void renderMultiTexture(Minecraft minecraft, SkyboxDefinition skybox, float[] colorModulation) {
         float[][] faceRanges = atlasFaceRanges();
         float[] quad = new float[]{-HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, HALF_WIDTH};
         long now = System.currentTimeMillis();
@@ -250,10 +264,10 @@ public final class SkyboxRenderer {
                 minecraft.getTextureManager().bindTexture(animation.getTexture());
                 BufferBuilder buffer = Tessellator.getInstance().getBuffer();
                 buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-                addTextureVertex(buffer, position[0], -HALF_WIDTH, position[1], uv[0], uv[1], alpha);
-                addTextureVertex(buffer, position[0], -HALF_WIDTH, position[3], uv[0], uv[3], alpha);
-                addTextureVertex(buffer, position[2], -HALF_WIDTH, position[3], uv[2], uv[3], alpha);
-                addTextureVertex(buffer, position[2], -HALF_WIDTH, position[1], uv[2], uv[1], alpha);
+                addTextureVertex(buffer, position[0], -HALF_WIDTH, position[1], uv[0], uv[1], colorModulation);
+                addTextureVertex(buffer, position[0], -HALF_WIDTH, position[3], uv[0], uv[3], colorModulation);
+                addTextureVertex(buffer, position[2], -HALF_WIDTH, position[3], uv[2], uv[3], colorModulation);
+                addTextureVertex(buffer, position[2], -HALF_WIDTH, position[1], uv[2], uv[1], colorModulation);
                 Tessellator.getInstance().draw();
             }
             GlStateManager.popMatrix();
@@ -287,10 +301,11 @@ public final class SkyboxRenderer {
         };
     }
 
-    private static void addTextureVertex(BufferBuilder buffer, double x, double y, double z, double u, double v, float alpha) {
+    private static void addTextureVertex(BufferBuilder buffer, double x, double y, double z, double u, double v,
+                                         float[] colorModulation) {
         buffer.pos(x, y, z)
                 .tex(u, v)
-                .color(1.0F, 1.0F, 1.0F, alpha)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3])
                 .endVertex();
     }
 
@@ -300,16 +315,15 @@ public final class SkyboxRenderer {
             return;
         }
 
-        float weatherAlpha = 1.0F - minecraft.world.getRainStrength(partialTicks);
         GlStateManager.pushMatrix();
         GlStateManager.enableTexture2D();
         GlStateManager.enableBlend();
-        applyDecorationBlend(skybox.getDecorationBlend());
-        GlStateManager.rotate(-90.0F, 0.0F, 1.0F, 0.0F);
-        GlStateManager.rotate(minecraft.world.getCelestialAngle(partialTicks) * 360.0F, 1.0F, 0.0F, 0.0F);
+        float[] colorModulation = applyBlend(skybox.getDecorationBlendSettings(), alpha);
+        applyRotation(minecraft.world, skybox.isDecorationSkyboxRotation(), skybox.getDecorationStaticRotation(),
+                skybox.getDecorationAxisRotation(), skybox.getDecorationTimeShift(), skybox.getDecorationRotationSpeed());
 
         if (skybox.isSunEnabled()) {
-            drawCelestialQuad(minecraft, skybox.getSunTexture(), alpha * weatherAlpha,
+            drawCelestialQuad(minecraft, skybox.getSunTexture(), colorModulation,
                     30.0F, 100.0F, 0.0F, 0.0F, 1.0F, 1.0F);
         }
         if (skybox.isMoonEnabled()) {
@@ -320,10 +334,10 @@ public final class SkyboxRenderer {
             float minV = row / 2.0F;
             float maxU = (column + 1) / 4.0F;
             float maxV = (row + 1) / 2.0F;
-            drawMoon(minecraft, skybox.getMoonTexture(), alpha * weatherAlpha, minU, minV, maxU, maxV);
+            drawMoon(minecraft, skybox.getMoonTexture(), colorModulation, minU, minV, maxU, maxV);
         }
         if (skybox.areStarsEnabled()) {
-            renderStars(minecraft, alpha, partialTicks, renderGlobal);
+            renderStars(minecraft, colorModulation, partialTicks, renderGlobal);
         }
 
         GlStateManager.popMatrix();
@@ -332,42 +346,51 @@ public final class SkyboxRenderer {
         GlStateManager.disableBlend();
     }
 
-    private static void drawCelestialQuad(Minecraft minecraft, ResourceLocation texture, float alpha,
+    private static void drawCelestialQuad(Minecraft minecraft, ResourceLocation texture, float[] colorModulation,
                                           float halfWidth, float y, float minU, float minV, float maxU, float maxV) {
         minecraft.getTextureManager().bindTexture(texture);
-        GlStateManager.color(1.0F, 1.0F, 1.0F, alpha);
+        GlStateManager.color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]);
         BufferBuilder buffer = Tessellator.getInstance().getBuffer();
         buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-        buffer.pos(-halfWidth, y, -halfWidth).tex(minU, minV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-        buffer.pos(halfWidth, y, -halfWidth).tex(maxU, minV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-        buffer.pos(halfWidth, y, halfWidth).tex(maxU, maxV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-        buffer.pos(-halfWidth, y, halfWidth).tex(minU, maxV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
+        buffer.pos(-halfWidth, y, -halfWidth).tex(minU, minV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
+        buffer.pos(halfWidth, y, -halfWidth).tex(maxU, minV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
+        buffer.pos(halfWidth, y, halfWidth).tex(maxU, maxV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
+        buffer.pos(-halfWidth, y, halfWidth).tex(minU, maxV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
         Tessellator.getInstance().draw();
     }
 
-    private static void drawMoon(Minecraft minecraft, ResourceLocation texture, float alpha,
+    private static void drawMoon(Minecraft minecraft, ResourceLocation texture, float[] colorModulation,
                                  float minU, float minV, float maxU, float maxV) {
         minecraft.getTextureManager().bindTexture(texture);
-        GlStateManager.color(1.0F, 1.0F, 1.0F, alpha);
+        GlStateManager.color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]);
         BufferBuilder buffer = Tessellator.getInstance().getBuffer();
         buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
-        buffer.pos(-20.0F, -100.0F, 20.0F).tex(maxU, maxV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-        buffer.pos(20.0F, -100.0F, 20.0F).tex(minU, maxV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-        buffer.pos(20.0F, -100.0F, -20.0F).tex(minU, minV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-        buffer.pos(-20.0F, -100.0F, -20.0F).tex(maxU, minV).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
+        buffer.pos(-20.0F, -100.0F, 20.0F).tex(maxU, maxV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
+        buffer.pos(20.0F, -100.0F, 20.0F).tex(minU, maxV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
+        buffer.pos(20.0F, -100.0F, -20.0F).tex(minU, minV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
+        buffer.pos(-20.0F, -100.0F, -20.0F).tex(maxU, minV)
+                .color(colorModulation[0], colorModulation[1], colorModulation[2], colorModulation[3]).endVertex();
         Tessellator.getInstance().draw();
     }
 
-    private static void renderStars(Minecraft minecraft, float skyboxAlpha, float partialTicks,
+    private static void renderStars(Minecraft minecraft, float[] colorModulation, float partialTicks,
                                     RenderGlobalSkyAccessor renderGlobal) {
         float rainAlpha = 1.0F - minecraft.world.getRainStrength(partialTicks);
-        float brightness = minecraft.world.getStarBrightness(partialTicks) * rainAlpha * skyboxAlpha;
+        float brightness = minecraft.world.getStarBrightness(partialTicks) * rainAlpha;
         if (brightness <= 0.0F) {
             return;
         }
 
         GlStateManager.disableTexture2D();
-        GlStateManager.color(brightness, brightness, brightness, brightness);
+        GlStateManager.color(brightness * colorModulation[0], brightness * colorModulation[1],
+                brightness * colorModulation[2], brightness * colorModulation[3]);
         if (renderGlobal.isVboEnabled()) {
             VertexBuffer stars = renderGlobal.getStarVBO();
             if (stars != null) {
@@ -385,16 +408,6 @@ public final class SkyboxRenderer {
             }
         }
         GlStateManager.enableTexture2D();
-    }
-
-    private static void applyDecorationBlend(String blend) {
-        if ("alpha".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
-        } else if ("disable".equals(blend)) {
-            GlStateManager.disableBlend();
-        } else {
-            GlStateManager.tryBlendFuncSeparate(770, 1, 1, 0);
-        }
     }
 
     private static void rotateFace(int face) {
@@ -423,19 +436,16 @@ public final class SkyboxRenderer {
     }
 
     private static void applyRotation(Minecraft minecraft, SkyboxDefinition skybox) {
-        float[] axis = skybox.getAxisRotation();
-        float[] speed = skybox.getRotationSpeed();
-        int[] shift = skybox.getTimeShift();
-        float[] fixed = skybox.getStaticRotation();
-        long time = minecraft.world.getWorldTime();
+        applyRotation(minecraft.world, skybox.isSkyboxRotation(), skybox.getStaticRotation(),
+                skybox.getAxisRotation(), skybox.getTimeShift(), skybox.getRotationSpeed());
+    }
+
+    private static void applyRotation(World world, boolean skyboxRotation, float[] fixed, float[] axis,
+                                      int[] shift, float[] speed) {
         float[] timeRotation = new float[3];
         for (int i = 0; i < timeRotation.length; i++) {
-            if (speed[i] != 0.0F) {
-                double rotationFraction = (time + shift[i]) * speed[i] / 24000.0D;
-                timeRotation[i] = (float) ((rotationFraction - Math.floor(rotationFraction)) * 360.0D);
-            }
+            timeRotation[i] = calculateRotation(world, skyboxRotation, speed[i], shift[i]);
         }
-
         GlStateManager.rotate(axis[0], 1.0F, 0.0F, 0.0F);
         GlStateManager.rotate(axis[1], 0.0F, 1.0F, 0.0F);
         GlStateManager.rotate(axis[2], 0.0F, 0.0F, 1.0F);
@@ -450,60 +460,135 @@ public final class SkyboxRenderer {
         GlStateManager.rotate(fixed[2], 0.0F, 0.0F, 1.0F);
     }
 
-    private static void applyBlend(String blend) {
-        if (blend != null && blend.startsWith("optifine_")) {
-            applyOptiFineBlend(blend.substring("optifine_".length()));
-        } else if ("disable".equals(blend)) {
-            GlStateManager.disableBlend();
-        } else if ("add".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(770, 1, 1, 0);
-        } else if ("subtract".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(775, 0, 1, 0);
-        } else if ("multiply".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(774, 771, 1, 0);
-        } else if ("screen".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(1, 769, 1, 0);
-        } else if ("replace".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(0, 1, 1, 0);
-        } else if ("burn".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(0, 769, 1, 0);
-        } else if ("dodge".equals(blend)) {
-            GlStateManager.tryBlendFuncSeparate(774, 1, 1, 0);
-        } else {
-            GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+    private static float calculateRotation(World world, boolean skyboxRotation, float speed, int timeShift) {
+        if (speed == 0.0F) {
+            return 0.0F;
+        }
+        double fraction = (world.getWorldTime() + timeShift) * speed / 24000.0D;
+        double wrappedFraction = fraction - Math.floor(fraction);
+        if (skyboxRotation) {
+            return (float) (wrappedFraction * 360.0D);
+        }
+        long timeOfDay = (long) (24000.0D * wrappedFraction);
+        return world.provider.calculateCelestialAngle(timeOfDay, 0.0F) * 360.0F;
+    }
+
+    private static void applyOptifineRotation(World world, SkyboxDefinition skybox, float partialTicks) {
+        if (!skybox.isOptifineRotate()) {
+            return;
+        }
+        float speed = skybox.getOptifineSpeed();
+        float dayStart = 0.0F;
+        if (speed != Math.round(speed)) {
+            long currentLevelDay = (world.getWorldTime() + 18000L) / 24000L;
+            double anglePerDay = speed % 1.0F;
+            dayStart = (float) ((currentLevelDay * anglePerDay) % 1.0D);
+        }
+        float angle = -360.0F * (dayStart + world.getCelestialAngle(partialTicks) * speed);
+        float[] axis = skybox.getOptifineAxis();
+        GlStateManager.rotate(angle, axis[0], axis[1], axis[2]);
+    }
+
+    private static float[] applyBlend(BlendSettings blend, float alpha) {
+        if (blend != null && blend.isCustom()) {
+            GlStateManager.enableBlend();
+            if (blend.isSeparateFunction()) {
+                GlStateManager.tryBlendFuncSeparate(blend.getSourceFactor(), blend.getDestinationFactor(),
+                        blend.getSourceFactorAlpha(), blend.getDestinationFactorAlpha());
+            } else {
+                GlStateManager.blendFunc(blend.getSourceFactor(), blend.getDestinationFactor());
+            }
+            GlStateManager.glBlendEquation(blend.getEquation());
+            return new float[]{
+                    blend.isRedAlphaEnabled() ? alpha : 1.0F,
+                    blend.isGreenAlphaEnabled() ? alpha : 1.0F,
+                    blend.isBlueAlphaEnabled() ? alpha : 1.0F,
+                    blend.isAlphaEnabled() ? alpha : 1.0F
+            };
+        }
+
+        String type = blend == null ? "" : blend.getType();
+        if (type.startsWith("optifine_")) {
+            return applyOptiFineBlend(type.substring("optifine_".length()), alpha);
+        }
+
+        GlStateManager.glBlendEquation(32774);
+        switch (type) {
+            case "disable":
+                GlStateManager.disableBlend();
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
+            case "add":
+                setBlendFunc(770, 1);
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
+            case "subtract":
+                setBlendFunc(775, 0);
+                return new float[]{alpha, alpha, alpha, 1.0F};
+            case "multiply":
+                setBlendFunc(774, 771);
+                return new float[]{alpha, alpha, alpha, alpha};
+            case "screen":
+                setBlendFunc(1, 769);
+                return new float[]{alpha, alpha, alpha, 1.0F};
+            case "replace":
+                setBlendFunc(0, 1);
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
+            case "burn":
+                setBlendFunc(0, 769);
+                return new float[]{alpha, alpha, alpha, 1.0F};
+            case "dodge":
+                setBlendFunc(774, 1);
+                return new float[]{alpha, alpha, alpha, 1.0F};
+            case "decorations":
+                GlStateManager.enableBlend();
+                GlStateManager.tryBlendFuncSeparate(770, 1, 1, 0);
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
+            case "alpha":
+            case "":
+            default:
+                GlStateManager.enableBlend();
+                GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
         }
     }
 
-    private static void applyOptiFineBlend(String blend) {
+    private static void setBlendFunc(int source, int destination) {
+        GlStateManager.enableBlend();
+        GlStateManager.blendFunc(source, destination);
+    }
+
+    private static float[] applyOptiFineBlend(String blend, float alpha) {
+        GlStateManager.glBlendEquation(32774);
         switch (blend) {
             case "add":
-                GlStateManager.tryBlendFuncSeparate(770, 1, 1, 0);
-                break;
+                setBlendFunc(770, 1);
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
             case "subtract":
-                GlStateManager.tryBlendFuncSeparate(775, 0, 1, 0);
-                break;
+                setBlendFunc(775, 0);
+                return new float[]{alpha, alpha, alpha, 1.0F};
             case "multiply":
-                GlStateManager.tryBlendFuncSeparate(774, 771, 1, 0);
-                break;
+                setBlendFunc(774, 771);
+                return new float[]{alpha, alpha, alpha, alpha};
             case "dodge":
-                GlStateManager.tryBlendFuncSeparate(1, 1, 1, 0);
-                break;
+                setBlendFunc(1, 1);
+                return new float[]{alpha, alpha, alpha, 1.0F};
             case "burn":
-                GlStateManager.tryBlendFuncSeparate(0, 769, 1, 0);
-                break;
+                setBlendFunc(0, 769);
+                return new float[]{alpha, alpha, alpha, 1.0F};
             case "screen":
-                GlStateManager.tryBlendFuncSeparate(1, 769, 1, 0);
-                break;
+                setBlendFunc(1, 769);
+                return new float[]{alpha, alpha, alpha, 1.0F};
             case "overlay":
-                GlStateManager.tryBlendFuncSeparate(774, 768, 1, 0);
-                break;
+                setBlendFunc(774, 768);
+                return new float[]{alpha, alpha, alpha, 1.0F};
             case "replace":
                 GlStateManager.disableBlend();
-                break;
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
             case "alpha":
             default:
+                GlStateManager.enableBlend();
                 GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
-                break;
+                return new float[]{1.0F, 1.0F, 1.0F, alpha};
         }
     }
+
 }

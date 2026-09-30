@@ -59,7 +59,7 @@ public final class SkyboxDefinition {
     private final float green;
     private final float blue;
     private final float colorAlpha;
-    private final String blend;
+    private final BlendSettings blendSettings;
     private final ResourceLocation[] textures;
     private final ResourceLocation[][] textureFrames;
     private final List<TextureAnimation> textureAnimations;
@@ -71,7 +71,7 @@ public final class SkyboxDefinition {
     private final boolean showStars;
     private final ResourceLocation sunTexture;
     private final ResourceLocation moonTexture;
-    private final String decorationBlend;
+    private final BlendSettings decorationBlendSettings;
 
     private final Set<ResourceLocation> biomes;
     private final boolean biomeInclusion;
@@ -90,6 +90,16 @@ public final class SkyboxDefinition {
     private final float[] axisRotation;
     private final int[] timeShift;
     private final float[] rotationSpeed;
+    private final boolean optifineLayer;
+    private final Set<String> optifineWeathers;
+    private final boolean optifineRotate;
+    private final float optifineSpeed;
+    private final float[] optifineAxis;
+    private final boolean decorationSkyboxRotation;
+    private final float[] decorationStaticRotation;
+    private final float[] decorationAxisRotation;
+    private final int[] decorationTimeShift;
+    private final float[] decorationRotationSpeed;
 
     private int lastTime = -2;
     private float conditionAlpha;
@@ -97,7 +107,7 @@ public final class SkyboxDefinition {
 
     private SkyboxDefinition(ResourceLocation id, int schemaVersion, ResourceLocation typeId, Type type,
                             JsonObject payload, JsonObject properties, JsonObject conditions, JsonObject decorations,
-                            float red, float green, float blue, float colorAlpha, String blend,
+                            float red, float green, float blue, float colorAlpha, BlendSettings blendSettings,
                             ResourceLocation[] textures, float[][] textureUvs, List<TextureAnimation> textureAnimations,
                             List<ResourceLocation[]> textureFrames, float fps) {
         this.id = id;
@@ -135,7 +145,7 @@ public final class SkyboxDefinition {
         this.green = clamp(green, 0.0F, 1.0F);
         this.blue = clamp(blue, 0.0F, 1.0F);
         this.colorAlpha = clamp(colorAlpha, 0.0F, 1.0F);
-        this.blend = blend;
+        this.blendSettings = blendSettings;
         this.textures = textures == null ? new ResourceLocation[0] : textures.clone();
         this.textureFrames = copyTextureFrames(textureFrames, this.textures);
         this.textureAnimations = textureAnimations == null ? new ArrayList<>() : new ArrayList<>(textureAnimations);
@@ -161,7 +171,8 @@ public final class SkyboxDefinition {
         this.showStars = getBoolean(decorations, "showStars", false);
         this.sunTexture = parseLocation(getString(decorations, "sun", "textures/environment/sun.png"));
         this.moonTexture = parseLocation(getString(decorations, "moon", "textures/environment/moon_phases.png"));
-        this.decorationBlend = getString(getObject(decorations, "blend"), "type", "decorations");
+        JsonObject decorationBlend = getObject(decorations, "blend");
+        this.decorationBlendSettings = BlendSettings.from(decorationBlend, decorationBlend == null ? "decorations" : "");
 
         this.biomes = readLocations(conditions, "biomes");
         this.biomeInclusion = getBoolean(payload, "biomeInclusion", true);
@@ -189,6 +200,25 @@ public final class SkyboxDefinition {
                 getFloat(rotation, "rotationSpeedX", 0.0F),
                 getFloat(rotation, "rotationSpeedY", 0.0F),
                 getFloat(rotation, "rotationSpeedZ", 0.0F)
+        };
+
+        JsonObject optifine = getObject(payload, "optifine");
+        this.optifineLayer = optifine != null;
+        this.optifineWeathers = readStrings(optifine, "weathers");
+        this.optifineRotate = getBoolean(optifine, "rotate", false);
+        this.optifineSpeed = getFloat(optifine, "speed", 1.0F);
+        this.optifineAxis = readVector(optifine, "axis", new float[]{1.0F, 0.0F, 0.0F});
+
+        JsonObject decorationRotation = getObject(decorations, "rotation");
+        boolean hasDecorations = decorations != null;
+        this.decorationSkyboxRotation = getBoolean(decorationRotation, "skyboxRotation", !hasDecorations);
+        this.decorationStaticRotation = readVector(decorationRotation, "static", 0.0F);
+        this.decorationAxisRotation = readVector(decorationRotation, "axis", 0.0F);
+        this.decorationTimeShift = readIntVector(decorationRotation, "timeShift");
+        this.decorationRotationSpeed = new float[]{
+                getFloat(decorationRotation, "rotationSpeedX", 0.0F),
+                getFloat(decorationRotation, "rotationSpeedY", 0.0F),
+                getFloat(decorationRotation, "rotationSpeedZ", hasDecorations ? 1.0F : 0.0F)
         };
     }
 
@@ -364,8 +394,10 @@ public final class SkyboxDefinition {
         }
 
         JsonObject decorations = schemaVersion == 1 ? null : getObject(json, "decorations");
+        BlendSettings blendSettings = BlendSettings.from(
+                schemaVersion == 1 ? null : getObject(json, "blend"), blend);
         return new SkyboxDefinition(id, schemaVersion, typeId, type, json,
-                properties, conditions, decorations, red, green, blue, colorAlpha, blend,
+                properties, conditions, decorations, red, green, blue, colorAlpha, blendSettings,
                 textures, textureUvs, textureAnimations, textureFrames, fps);
     }
 
@@ -386,8 +418,9 @@ public final class SkyboxDefinition {
         this.conditionAlpha = transition(this.conditionAlpha, conditionTarget, Math.max(0, transitionDuration));
 
         float timeAlpha = this.alwaysOn ? 1.0F : calculateFadeAlpha(currentTime);
+        float optifineWeatherAlpha = this.optifineLayer ? calculateOptifineWeatherAlpha(world, minecraft.player) : 1.0F;
         this.alpha = clamp(timeAlpha * this.conditionAlpha * (this.maxAlpha - this.minAlpha) + this.minAlpha,
-                this.minAlpha, this.maxAlpha);
+                this.minAlpha, this.maxAlpha) * optifineWeatherAlpha;
         this.lastTime = currentTime;
         return this.alpha > 0.0F;
     }
@@ -417,7 +450,7 @@ public final class SkyboxDefinition {
                 }
             }
         }
-        if (!this.weather.isEmpty() && !matchesWeather(world, player, this.weather)) {
+        if (!this.optifineLayer && !this.weather.isEmpty() && !matchesWeather(world, player, this.weather)) {
             return false;
         }
         if (!contains(this.xRanges, player.posX) || !contains(this.yRanges, player.posY) || !contains(this.zRanges, player.posZ)) {
@@ -446,6 +479,25 @@ public final class SkyboxDefinition {
                 || (weather.contains("snow") && raining && snowyBiome)
                 || (weather.contains("rain_biome") && raining && !snowyBiome)
                 || (weather.contains("clear") && !raining && !thunder);
+    }
+
+    private float calculateOptifineWeatherAlpha(World world, EntityPlayer player) {
+        float rain = world.getRainStrength(1.0F);
+        float thunder = world.getThunderStrength(1.0F);
+        float alpha = this.optifineWeathers.contains("clear") ? 1.0F - rain : 0.0F;
+        if (this.optifineWeathers.contains("thunder")) {
+            alpha += thunder;
+        }
+
+        float rainOnly = Math.max(0.0F, rain - thunder);
+        boolean snowyBiome = world.getBiome(player.getPosition()).isSnowyBiome();
+        boolean precipitationMatches = snowyBiome
+                ? this.optifineWeathers.contains("snow") || this.optifineWeathers.contains("rain")
+                : this.optifineWeathers.contains("rain") || this.optifineWeathers.contains("rain_biome");
+        if (precipitationMatches) {
+            alpha += rainOnly;
+        }
+        return clamp(alpha, 0.0F, 1.0F);
     }
 
     private float calculateFadeAlpha(int currentTime) {
@@ -645,7 +697,11 @@ public final class SkyboxDefinition {
     }
 
     private static float[] readVector(JsonObject object, String name, float fallback) {
-        float[] vector = new float[]{fallback, fallback, fallback};
+        return readVector(object, name, new float[]{fallback, fallback, fallback});
+    }
+
+    private static float[] readVector(JsonObject object, String name, float[] fallback) {
+        float[] vector = fallback.clone();
         if (object == null || !object.has(name) || !object.get(name).isJsonArray()) {
             return vector;
         }
@@ -794,8 +850,8 @@ public final class SkyboxDefinition {
         return this.colorAlpha;
     }
 
-    public String getBlend() {
-        return this.blend;
+    public BlendSettings getBlendSettings() {
+        return this.blendSettings;
     }
 
     public ResourceLocation[] getTextures() {
@@ -873,8 +929,44 @@ public final class SkyboxDefinition {
         return this.moonTexture;
     }
 
-    public String getDecorationBlend() {
-        return this.decorationBlend;
+    public BlendSettings getDecorationBlendSettings() {
+        return this.decorationBlendSettings;
+    }
+
+    public boolean isOptifineLayer() {
+        return this.optifineLayer;
+    }
+
+    public boolean isOptifineRotate() {
+        return this.optifineRotate;
+    }
+
+    public float getOptifineSpeed() {
+        return this.optifineSpeed;
+    }
+
+    public float[] getOptifineAxis() {
+        return this.optifineAxis.clone();
+    }
+
+    public boolean isDecorationSkyboxRotation() {
+        return this.decorationSkyboxRotation;
+    }
+
+    public float[] getDecorationStaticRotation() {
+        return this.decorationStaticRotation.clone();
+    }
+
+    public float[] getDecorationAxisRotation() {
+        return this.decorationAxisRotation.clone();
+    }
+
+    public int[] getDecorationTimeShift() {
+        return this.decorationTimeShift.clone();
+    }
+
+    public float[] getDecorationRotationSpeed() {
+        return this.decorationRotationSpeed.clone();
     }
 
     private static final class ValueRange {

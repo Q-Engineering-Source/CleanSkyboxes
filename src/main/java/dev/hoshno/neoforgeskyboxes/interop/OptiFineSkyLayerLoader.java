@@ -84,31 +84,20 @@ public final class OptiFineSkyLayerLoader {
         JsonObject blend = new JsonObject();
         blend.addProperty("type", "optifine_" + properties.getProperty("blend", "add"));
         definition.add("blend", blend);
+        definition.add("optifine", makeOptifineSettings(properties));
 
         JsonObject layerProperties = new JsonObject();
         layerProperties.addProperty("priority", parseInt(skyNumber, 0));
         layerProperties.add("fade", makeFade(properties));
-        int transition = Math.max(0, parseInt(properties.getProperty("transition", "1"), 1)) * 20;
+        int transition = Math.max(0, Math.round(parseFloat(properties.getProperty("transition", "1"), 1.0F) * 20.0F));
         layerProperties.addProperty("transitionInDuration", transition);
         layerProperties.addProperty("transitionOutDuration", transition);
-        layerProperties.add("rotation", makeRotation(properties));
         definition.add("properties", layerProperties);
 
         JsonObject conditions = new JsonObject();
         JsonArray worlds = new JsonArray();
         worlds.add(toDimensionId(worldName));
         conditions.add("worlds", worlds);
-
-        String weatherValue = properties.getProperty("weather", "clear snow").trim();
-        JsonArray weather = new JsonArray();
-        for (String value : weatherValue.split("\\s+")) {
-            if (!value.isEmpty()) {
-                weather.add(value);
-            }
-        }
-        if (weather.size() > 0) {
-            conditions.add("weather", weather);
-        }
 
         String biomeValue = properties.getProperty("biomes", "").trim();
         if (!biomeValue.isEmpty()) {
@@ -172,22 +161,31 @@ public final class OptiFineSkyLayerLoader {
         return fade;
     }
 
-    private static JsonObject makeRotation(Properties properties) {
-        JsonObject rotation = new JsonObject();
+    private static JsonObject makeOptifineSettings(Properties properties) {
+        JsonObject settings = new JsonObject();
+        settings.addProperty("rotate", Boolean.parseBoolean(properties.getProperty("rotate", "false")));
+        settings.addProperty("speed", parseFloat(properties.getProperty("speed", "1"), 1.0F));
+
         JsonArray axis = new JsonArray();
         String axisText = properties.getProperty("axis", "0 1 0").trim();
         String[] components = axisText.split("\\s+");
         if (components.length != 3) {
             components = new String[]{"0", "1", "0"};
         }
-        for (int i = components.length - 1; i >= 0; i--) {
-            axis.add(parseFloat(components[i], i == 1 ? 90.0F : 0.0F) * 90.0F);
+        for (String component : components) {
+            axis.add(parseFloat(component, 0.0F));
         }
-        rotation.add("axis", axis);
-        boolean rotate = Boolean.parseBoolean(properties.getProperty("rotate", "false"));
-        float speed = rotate ? parseFloat(properties.getProperty("speed", "1"), 1.0F) * -1.0F : 0.0F;
-        rotation.addProperty("rotationSpeedY", speed);
-        return rotation;
+        settings.add("axis", axis);
+
+        JsonArray weathers = new JsonArray();
+        String weatherValue = properties.getProperty("weather", "clear").trim();
+        for (String value : weatherValue.split("\\s+")) {
+            if (!value.isEmpty()) {
+                weathers.add(value.toLowerCase());
+            }
+        }
+        settings.add("weathers", weathers);
+        return settings;
     }
 
     private static JsonArray makeRanges(String text) {
