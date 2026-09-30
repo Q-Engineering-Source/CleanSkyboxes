@@ -26,13 +26,17 @@ import java.util.stream.Stream;
 
 /** Finds skybox JSON files in active 1.12.2 packs, whose resource manager cannot enumerate IDs. */
 public final class ResourcePackScanner {
-    private static final String ASSET_PREFIX = "assets/" + NeoforgeSkyboxes.FABRIC_SKYBOXES_NAMESPACE + "/";
-    private static final String SKY_PREFIX = ASSET_PREFIX + "sky/";
+    private static final String ASSET_PREFIX = "assets/";
 
     private ResourcePackScanner() {
     }
 
     public static Set<ResourceLocation> findSkyboxResources(IResourceManager resourceManager) {
+        return findResources(resourceManager, NeoforgeSkyboxes.FABRIC_SKYBOXES_NAMESPACE, "sky", ".json");
+    }
+
+    public static Set<ResourceLocation> findResources(IResourceManager resourceManager, String namespace,
+                                                      String directory, String extension) {
         if (!(resourceManager instanceof SimpleReloadableResourceManager)) {
             NeoforgeSkyboxes.getLogger().warn("Cannot list skybox files from resource manager {}", resourceManager.getClass().getName());
             return Collections.emptySet();
@@ -40,10 +44,14 @@ public final class ResourcePackScanner {
 
         Map<String, FallbackResourceManager> domains =
                 ((SimpleReloadableResourceManagerAccessor) resourceManager).getDomainResourceManagers();
-        Set<IResourcePack> packs = new LinkedHashSet<>();
-        for (FallbackResourceManager domain : domains.values()) {
-            packs.addAll(((FallbackResourceManagerAccessor) domain).getResourcePacks());
+        FallbackResourceManager domain = domains.get(namespace);
+        if (domain == null) {
+            return Collections.emptySet();
         }
+        Set<IResourcePack> packs = new LinkedHashSet<>(
+                ((FallbackResourceManagerAccessor) domain).getResourcePacks());
+        String resourcePrefix = directory.replace('\\', '/') + "/";
+        String packPrefix = ASSET_PREFIX + namespace + "/" + resourcePrefix;
 
         Set<ResourceLocation> resources = new LinkedHashSet<>();
         for (IResourcePack pack : packs) {
@@ -52,9 +60,9 @@ public final class ResourcePackScanner {
                 continue;
             }
             if (packFile.isDirectory()) {
-                scanDirectory(packFile, resources);
+                scanDirectory(packFile, namespace, resourcePrefix, extension, resources);
             } else if (packFile.isFile()) {
-                scanZip(packFile, resources);
+                scanZip(packFile, namespace, resourcePrefix, packPrefix, extension, resources);
             }
         }
         return Collections.unmodifiableSet(resources);
@@ -68,8 +76,10 @@ public final class ResourcePackScanner {
         return null;
     }
 
-    private static void scanDirectory(File packFile, Set<ResourceLocation> resources) {
-        Path root = packFile.toPath().resolve(SKY_PREFIX);
+    private static void scanDirectory(File packFile, String namespace, String resourcePrefix,
+                                      String extension, Set<ResourceLocation> resources) {
+        Path root = packFile.toPath().resolve("assets").resolve(namespace)
+                .resolve(resourcePrefix.replace('/', File.separatorChar));
         if (!Files.isDirectory(root)) {
             return;
         }
@@ -78,21 +88,22 @@ public final class ResourcePackScanner {
                     .map(root::relativize)
                     .map(Path::toString)
                     .map(path -> path.replace(File.separatorChar, '/'))
-                    .filter(path -> path.endsWith(".json"))
-                    .forEach(path -> resources.add(new ResourceLocation(NeoforgeSkyboxes.FABRIC_SKYBOXES_NAMESPACE, "sky/" + path)));
+                    .filter(path -> path.endsWith(extension))
+                    .forEach(path -> resources.add(new ResourceLocation(namespace, resourcePrefix + path)));
         } catch (IOException exception) {
             NeoforgeSkyboxes.getLogger().warn("Could not scan resource pack directory {}", root, exception);
         }
     }
 
-    private static void scanZip(File packFile, Set<ResourceLocation> resources) {
+    private static void scanZip(File packFile, String namespace, String resourcePrefix, String packPrefix,
+                                String extension, Set<ResourceLocation> resources) {
         try (ZipFile zip = new ZipFile(packFile)) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
                 String name = entries.nextElement().getName();
-                if (name.startsWith(SKY_PREFIX) && name.endsWith(".json")) {
-                    String resourcePath = name.substring(ASSET_PREFIX.length());
-                    resources.add(new ResourceLocation(NeoforgeSkyboxes.FABRIC_SKYBOXES_NAMESPACE, resourcePath));
+                if (name.startsWith(packPrefix) && name.endsWith(extension)) {
+                    String resourcePath = name.substring((ASSET_PREFIX + namespace + "/").length());
+                    resources.add(new ResourceLocation(namespace, resourcePath));
                 }
             }
         } catch (IOException exception) {

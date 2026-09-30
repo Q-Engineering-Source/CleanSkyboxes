@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import dev.hoshno.neoforgeskyboxes.NeoforgeSkyboxes;
 import dev.hoshno.neoforgeskyboxes.SkyboxManager;
+import dev.hoshno.neoforgeskyboxes.interop.OptiFineSkyLayerLoader;
 import dev.hoshno.neoforgeskyboxes.skyboxes.SkyboxDefinition;
 import net.minecraft.client.resources.IResource;
 import net.minecraft.client.resources.IResourceManager;
@@ -35,6 +36,10 @@ public final class SkyboxResourceListener implements IResourceManagerReloadListe
             } catch (Exception exception) {
                 NeoforgeSkyboxes.getLogger().error("Error reading skybox {}", id, exception);
             }
+        }
+
+        if (NeoforgeSkyboxes.config().generalSettings.enableOptiFineInterop) {
+            OptiFineSkyLayerLoader.load(resourceManager);
         }
     }
 }

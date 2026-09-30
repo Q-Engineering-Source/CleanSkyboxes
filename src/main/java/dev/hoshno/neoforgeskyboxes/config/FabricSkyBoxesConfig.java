@@ -67,6 +67,7 @@ public final class FabricSkyBoxesConfig {
         public boolean enable = true;
         public int unexpectedTransitionDuration = 20;
         public boolean keepVanillaBehaviour = true;
+        public boolean enableOptiFineInterop = true;
         public boolean debugMode;
         public boolean debugHud;
     }

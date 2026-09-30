@@ -451,7 +451,9 @@ public final class SkyboxRenderer {
     }
 
     private static void applyBlend(String blend) {
-        if ("disable".equals(blend)) {
+        if (blend != null && blend.startsWith("optifine_")) {
+            applyOptiFineBlend(blend.substring("optifine_".length()));
+        } else if ("disable".equals(blend)) {
             GlStateManager.disableBlend();
         } else if ("add".equals(blend)) {
             GlStateManager.tryBlendFuncSeparate(770, 1, 1, 0);
@@ -469,6 +471,39 @@ public final class SkyboxRenderer {
             GlStateManager.tryBlendFuncSeparate(774, 1, 1, 0);
         } else {
             GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        }
+    }
+
+    private static void applyOptiFineBlend(String blend) {
+        switch (blend) {
+            case "add":
+                GlStateManager.tryBlendFuncSeparate(770, 1, 1, 0);
+                break;
+            case "subtract":
+                GlStateManager.tryBlendFuncSeparate(775, 0, 1, 0);
+                break;
+            case "multiply":
+                GlStateManager.tryBlendFuncSeparate(774, 771, 1, 0);
+                break;
+            case "dodge":
+                GlStateManager.tryBlendFuncSeparate(1, 1, 1, 0);
+                break;
+            case "burn":
+                GlStateManager.tryBlendFuncSeparate(0, 769, 1, 0);
+                break;
+            case "screen":
+                GlStateManager.tryBlendFuncSeparate(1, 769, 1, 0);
+                break;
+            case "overlay":
+                GlStateManager.tryBlendFuncSeparate(774, 768, 1, 0);
+                break;
+            case "replace":
+                GlStateManager.disableBlend();
+                break;
+            case "alpha":
+            default:
+                GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+                break;
         }
     }
 }

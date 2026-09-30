@@ -74,6 +74,7 @@ public final class SkyboxDefinition {
     private final String decorationBlend;
 
     private final Set<ResourceLocation> biomes;
+    private final boolean biomeInclusion;
     private final Set<ResourceLocation> dimensions;
     private final Set<ResourceLocation> worlds;
     private final Set<ResourceLocation> effects;
@@ -163,6 +164,7 @@ public final class SkyboxDefinition {
         this.decorationBlend = getString(getObject(decorations, "blend"), "type", "decorations");
 
         this.biomes = readLocations(conditions, "biomes");
+        this.biomeInclusion = getBoolean(payload, "biomeInclusion", true);
         this.dimensions = readLocations(conditions, "dimensions");
         this.worlds = readLocations(conditions, "worlds");
         if (schemaVersion == 1 && this.worlds.isEmpty()) {
@@ -402,7 +404,8 @@ public final class SkyboxDefinition {
         if (!this.biomes.isEmpty()) {
             Biome biome = world.getBiome(player.getPosition());
             ResourceLocation biomeId = biome.getRegistryName();
-            if (biomeId == null || !matchesLocation(this.biomes, biomeId)) {
+            boolean matches = biomeId != null && matchesLocation(this.biomes, biomeId);
+            if (matches != this.biomeInclusion) {
                 return false;
             }
         }
