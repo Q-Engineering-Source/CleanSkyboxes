@@ -35,7 +35,8 @@ public final class SkyboxManager {
         if (skybox.getType() == SkyboxDefinition.Type.SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.ANIMATED_SQUARE_TEXTURED
-                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED) {
+                || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED
+                || skybox.getType() == SkyboxDefinition.Type.MULTI_TEXTURE) {
             for (ResourceLocation texture : skybox.getAllTextures()) {
                 Minecraft.getMinecraft().getTextureManager().bindTexture(texture);
             }

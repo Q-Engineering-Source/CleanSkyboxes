@@ -52,6 +52,9 @@ public final class SkyboxRenderer {
                 || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_ANIMATED_SQUARE_TEXTURED) {
             GlStateManager.enableTexture2D();
             renderSquareTextured(minecraft, skybox, alpha);
+        } else if (skybox.getType() == SkyboxDefinition.Type.MULTI_TEXTURE) {
+            GlStateManager.enableTexture2D();
+            renderMultiTexture(minecraft, skybox, alpha);
         }
 
         GlStateManager.popMatrix();
@@ -222,6 +225,66 @@ public final class SkyboxRenderer {
             Tessellator.getInstance().draw();
             GlStateManager.popMatrix();
         }
+    }
+
+    private static void renderMultiTexture(Minecraft minecraft, SkyboxDefinition skybox, float alpha) {
+        float[][] faceRanges = atlasFaceRanges();
+        float[] quad = new float[]{-HALF_WIDTH, -HALF_WIDTH, HALF_WIDTH, HALF_WIDTH};
+        long now = System.currentTimeMillis();
+        for (int face = 0; face < faceRanges.length; face++) {
+            float[] faceRange = faceRanges[face];
+            GlStateManager.pushMatrix();
+            rotateFace(face);
+            for (TextureAnimation animation : skybox.getTextureAnimations()) {
+                float[] animationRange = animation.getUvRange();
+                float[] overlap = intersect(faceRange, animationRange);
+                if (overlap == null) {
+                    continue;
+                }
+                float[] position = mapRange(faceRange, quad, overlap);
+                float[] frame = animation.getCurrentFrame(now);
+                if (frame == null) {
+                    continue;
+                }
+                float[] uv = mapRange(animationRange, frame, overlap);
+                minecraft.getTextureManager().bindTexture(animation.getTexture());
+                BufferBuilder buffer = Tessellator.getInstance().getBuffer();
+                buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_COLOR);
+                addTextureVertex(buffer, position[0], -HALF_WIDTH, position[1], uv[0], uv[1], alpha);
+                addTextureVertex(buffer, position[0], -HALF_WIDTH, position[3], uv[0], uv[3], alpha);
+                addTextureVertex(buffer, position[2], -HALF_WIDTH, position[3], uv[2], uv[3], alpha);
+                addTextureVertex(buffer, position[2], -HALF_WIDTH, position[1], uv[2], uv[1], alpha);
+                Tessellator.getInstance().draw();
+            }
+            GlStateManager.popMatrix();
+        }
+    }
+
+    private static float[] intersect(float[] first, float[] second) {
+        float minU = Math.max(first[0], second[0]);
+        float minV = Math.max(first[1], second[1]);
+        float maxU = Math.min(first[2], second[2]);
+        float maxV = Math.min(first[3], second[3]);
+        return maxU >= minU && maxV >= minV ? new float[]{minU, minV, maxU, maxV} : null;
+    }
+
+    private static float[] mapRange(float[] input, float[] output, float[] intersection) {
+        float u1 = (intersection[0] - input[0]) / (input[2] - input[0]) * (output[2] - output[0]) + output[0];
+        float v1 = (intersection[1] - input[1]) / (input[3] - input[1]) * (output[3] - output[1]) + output[1];
+        float u2 = (intersection[2] - input[0]) / (input[2] - input[0]) * (output[2] - output[0]) + output[0];
+        float v2 = (intersection[3] - input[1]) / (input[3] - input[1]) * (output[3] - output[1]) + output[1];
+        return new float[]{u1, v1, u2, v2};
+    }
+
+    private static float[][] atlasFaceRanges() {
+        return new float[][]{
+                {0.0F, 0.0F, 1.0F / 3.0F, 0.5F},
+                {1.0F / 3.0F, 0.5F, 2.0F / 3.0F, 1.0F},
+                {2.0F / 3.0F, 0.0F, 1.0F, 0.5F},
+                {1.0F / 3.0F, 0.0F, 2.0F / 3.0F, 0.5F},
+                {2.0F / 3.0F, 0.5F, 1.0F, 1.0F},
+                {0.0F, 0.5F, 1.0F / 3.0F, 1.0F}
+        };
     }
 
     private static void addTextureVertex(BufferBuilder buffer, double x, double y, double z, double u, double v, float alpha) {
