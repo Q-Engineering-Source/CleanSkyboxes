@@ -24,6 +24,7 @@ public final class SkyboxDefinition {
     public enum Type {
         MONOCOLOR,
         END,
+        OVERWORLD,
         SQUARE_TEXTURED,
         SINGLE_SPRITE_SQUARE_TEXTURED,
         ANIMATED_SQUARE_TEXTURED,
@@ -214,6 +215,9 @@ public final class SkyboxDefinition {
             case "end":
                 type = Type.END;
                 break;
+            case "overworld":
+                type = Type.OVERWORLD;
+                break;
             case "square_textured":
                 type = Type.SQUARE_TEXTURED;
                 break;
@@ -268,9 +272,9 @@ public final class SkyboxDefinition {
                 }
                 blend = getString(getObject(json, "blend"), "type", "");
             }
-        } else if (type == Type.END) {
+        } else if (type == Type.END || type == Type.OVERWORLD) {
             if (schemaVersion == 1) {
-                throw new IllegalArgumentException("end skyboxes require schemaVersion 2");
+                throw new IllegalArgumentException("dimension skyboxes require schemaVersion 2");
             }
         } else if (type == Type.SQUARE_TEXTURED) {
             JsonObject textureObject = schemaVersion == 1 ? json : getObject(json, "textures");

@@ -7,6 +7,18 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(RenderGlobal.class)
 public interface RenderGlobalSkyAccessor {
+    @Accessor("skyVBO")
+    VertexBuffer getSkyVBO();
+
+    @Accessor("glSkyList")
+    int getSkyDisplayList();
+
+    @Accessor("sky2VBO")
+    VertexBuffer getDarkSkyVBO();
+
+    @Accessor("glSkyList2")
+    int getDarkSkyDisplayList();
+
     @Accessor("starVBO")
     VertexBuffer getStarVBO();
 

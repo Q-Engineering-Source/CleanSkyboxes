@@ -3,10 +3,14 @@ package dev.hoshno.neoforgeskyboxes.skyboxes;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.VertexBuffer;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.entity.Entity;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
 import dev.hoshno.neoforgeskyboxes.mixin.skybox.RenderGlobalSkyAccessor;
 import org.lwjgl.opengl.GL11;
 
@@ -40,6 +44,8 @@ public final class SkyboxRenderer {
         } else if (skybox.getType() == SkyboxDefinition.Type.END) {
             GlStateManager.enableTexture2D();
             renderEndSky(minecraft, alpha);
+        } else if (skybox.getType() == SkyboxDefinition.Type.OVERWORLD) {
+            renderOverworldSky(minecraft, alpha, partialTicks, renderGlobal);
         } else if (skybox.getType() == SkyboxDefinition.Type.SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.SINGLE_SPRITE_SQUARE_TEXTURED
                 || skybox.getType() == SkyboxDefinition.Type.ANIMATED_SQUARE_TEXTURED
@@ -73,6 +79,82 @@ public final class SkyboxRenderer {
             addEndSkyVertex(buffer, HALF_WIDTH, -HALF_WIDTH, -HALF_WIDTH, 16.0D, 0.0D, alpha);
             Tessellator.getInstance().draw();
             GlStateManager.popMatrix();
+        }
+    }
+
+    private static void renderOverworldSky(Minecraft minecraft, float alpha,
+                                           float partialTicks, RenderGlobalSkyAccessor renderGlobal) {
+        World world = minecraft.world;
+        Entity camera = minecraft.getRenderViewEntity();
+        if (camera == null) {
+            return;
+        }
+
+        Vec3d skyColor = world.getSkyColor(camera, partialTicks);
+        GlStateManager.depthMask(false);
+        GlStateManager.enableFog();
+        GlStateManager.disableTexture2D();
+        GlStateManager.color((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, alpha);
+        drawSkyMesh(renderGlobal.getSkyVBO(), renderGlobal.getSkyDisplayList(), renderGlobal.isVboEnabled());
+        GlStateManager.disableFog();
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        RenderHelper.disableStandardItemLighting();
+
+        float skyAngle = world.getCelestialAngle(partialTicks);
+        float[] sunrise = world.provider.calcSunriseSunsetColors(skyAngle, partialTicks);
+        if (sunrise != null) {
+            GlStateManager.disableTexture2D();
+            GlStateManager.shadeModel(GL11.GL_SMOOTH);
+            GlStateManager.pushMatrix();
+            GlStateManager.rotate(90.0F, 1.0F, 0.0F, 0.0F);
+            GlStateManager.rotate(Math.sin(world.getCelestialAngleRadians(partialTicks)) < 0.0D ? 180.0F : 0.0F,
+                    0.0F, 0.0F, 1.0F);
+            GlStateManager.rotate(90.0F, 0.0F, 0.0F, 1.0F);
+
+            BufferBuilder buffer = Tessellator.getInstance().getBuffer();
+            buffer.begin(GL11.GL_TRIANGLE_FAN, DefaultVertexFormats.POSITION_COLOR);
+            buffer.pos(0.0D, 100.0D, 0.0D)
+                    .color(sunrise[0], sunrise[1], sunrise[2], sunrise[3] * alpha)
+                    .endVertex();
+            for (int i = 0; i <= 16; i++) {
+                float angle = i * (float) (Math.PI * 2.0D) / 16.0F;
+                float sin = (float) Math.sin(angle);
+                float cos = (float) Math.cos(angle);
+                buffer.pos(sin * 120.0F, cos * 120.0F, -cos * 40.0F * sunrise[3])
+                        .color(sunrise[0], sunrise[1], sunrise[2], 0.0F)
+                        .endVertex();
+            }
+            Tessellator.getInstance().draw();
+            GlStateManager.popMatrix();
+            GlStateManager.shadeModel(GL11.GL_FLAT);
+            GlStateManager.enableTexture2D();
+        }
+
+        double eyeY = camera.lastTickPosY + (camera.posY - camera.lastTickPosY) * partialTicks + camera.getEyeHeight();
+        if (eyeY < world.getHorizon()) {
+            GlStateManager.color(0.0F, 0.0F, 0.0F, alpha);
+            GlStateManager.pushMatrix();
+            GlStateManager.translate(0.0F, 12.0F, 0.0F);
+            drawSkyMesh(renderGlobal.getDarkSkyVBO(), renderGlobal.getDarkSkyDisplayList(), renderGlobal.isVboEnabled());
+            GlStateManager.popMatrix();
+        }
+
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        GlStateManager.depthMask(true);
+        GlStateManager.disableBlend();
+    }
+
+    private static void drawSkyMesh(VertexBuffer buffer, int displayList, boolean vboEnabled) {
+        if (vboEnabled && buffer != null) {
+            buffer.bindBuffer();
+            GlStateManager.glEnableClientState(GL11.GL_VERTEX_ARRAY);
+            GlStateManager.glVertexPointer(3, GL11.GL_FLOAT, 12, 0);
+            buffer.drawArrays(GL11.GL_QUADS);
+            buffer.unbindBuffer();
+            GlStateManager.glDisableClientState(GL11.GL_VERTEX_ARRAY);
+        } else if (displayList >= 0) {
+            GlStateManager.callList(displayList);
         }
     }
 
