@@ -1,0 +1,47 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build mod jars
+        run: ./gradlew build -x test
+
+      - name: Stage distributable jar
+        shell: bash
+        run: |
+          mkdir -p build/release
+          find build/libs -maxdepth 1 -type f -name 'neoforgeskyboxes-*.jar' \
+            ! -name '*-dev.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+            -exec cp {} build/release/ \;
+          test -n "$(find build/release -maxdepth 1 -name '*.jar' -print -quit)"
+
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1.21.0
+        with:
+          artifacts: 'build/release/*.jar'
+          generateReleaseNotes: true

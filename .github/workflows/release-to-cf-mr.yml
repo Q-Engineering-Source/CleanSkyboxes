@@ -1,0 +1,69 @@
+name: Publish to CurseForge and Modrinth
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build mod jars
+        run: ./gradlew build -x test
+
+      - name: Stage distributable jar
+        shell: bash
+        run: |
+          mkdir -p build/release
+          find build/libs -maxdepth 1 -type f -name 'neoforgeskyboxes-*.jar' \
+            ! -name '*-dev.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+            -exec cp {} build/release/ \;
+          test -n "$(find build/release -maxdepth 1 -name '*.jar' -print -quit)"
+
+      - name: Get changes between tags
+        id: changes
+        uses: simbo/changes-between-tags-action@v1
+
+      - name: Publish to Modrinth
+        if: ${{ vars.MODRINTH_PROJECT_ID != '' }}
+        uses: Kir-Antipov/mc-publish@v3.3.0
+        with:
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          files: build/release/*.jar
+          loaders: forge
+          game-versions: 1.12.2
+          java: '25'
+          version: ${{ steps.changes.outputs.tag }}
+          changelog: ${{ steps.changes.outputs.changes }}
+
+      - name: Publish to CurseForge
+        if: ${{ vars.CURSEFORGE_PROJECT_ID != '' }}
+        uses: Kir-Antipov/mc-publish@v3.3.0
+        with:
+          curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: build/release/*.jar
+          loaders: forge
+          game-versions: 1.12.2
+          java: '25'
+          version: ${{ steps.changes.outputs.tag }}
+          changelog: ${{ steps.changes.outputs.changes }}
