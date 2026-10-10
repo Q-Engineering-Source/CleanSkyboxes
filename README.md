@@ -2,6 +2,10 @@
 
 Client-side custom skybox support for Cleanroom 1.12.2, based on the existing FabricSkyBoxes/Nuit and OptiFine/MCPatcher compatibility work in this repository.
 
+## In-game showcase
+
+![CleanSkyboxes night skybox showcase](assets/skybox-showcase.png)
+
 ## Port status
 
 The build now targets Cleanroom 1.12.2. The active source tree supports the registered FabricSkyBoxes/Nuit types: monocolor, end, overworld, six-face, single-sprite, animated, single-sprite animated, and multi-texture skyboxes. It evaluates fade and common world conditions, draws skyboxes over vanilla skies, and supports custom sun, moon, stars, independent decoration rotation, custom blend factors/equations/channel alpha, fog color/density, and the Actinium Iris phase bridge. It also converts resource-pack OptiFine/MCPatcher `skyN.properties` layers, including relative textures, fades, arbitrary rotation axes, blend modes, weather-weighted alpha, biome, height, and day-loop conditions. The Forge entry point, toggle key, and resource discovery are ported too. The previous NeoForge 1.21.1 implementation is kept under `src/modern-reference` and is not compiled. The OptiFine importer targets this sky-layer properties format; it does not implement unrelated OptiFine features outside that format.
